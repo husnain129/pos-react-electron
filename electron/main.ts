@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn, ChildProcess } from "node:child_process";
 
 createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,53 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
+let backendProcess: ChildProcess | null = null;
+
+function startBackendServer() {
+  if (!VITE_DEV_SERVER_URL) {
+    // Only start backend in production/built mode
+    // In production, use app.getAppPath() and look in resources/app.asar.unpacked
+    const isPackaged = app.isPackaged;
+    const appPath = app.getAppPath();
+    
+    let serverPath: string;
+    let appRoot: string;
+    
+    if (isPackaged) {
+      // In packaged app, server is in asar.unpacked
+      appRoot = path.join(path.dirname(appPath), "app.asar.unpacked");
+      serverPath = path.join(appRoot, "server", "index.ts");
+    } else {
+      // In development build
+      appRoot = path.join(process.env.APP_ROOT);
+      serverPath = path.join(appRoot, "server", "index.ts");
+    }
+    
+    console.log("Starting backend server...");
+    console.log("Server path:", serverPath);
+    console.log("App root:", appRoot);
+    console.log("Is packaged:", isPackaged);
+    
+    // Use bun or node to run the server
+    const runCommand = process.platform === "win32" ? "bun.exe" : "bun";
+    backendProcess = spawn(runCommand, ["run", serverPath], {
+      cwd: appRoot,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+      },
+    });
+
+    backendProcess.on("error", (err) => {
+      console.error("Failed to start backend server:", err);
+    });
+
+    backendProcess.on("exit", (code) => {
+      console.log(`Backend server exited with code ${code}`);
+    });
+  }
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -47,6 +95,12 @@ function createWindow() {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on("window-all-closed", () => {
+  // Kill backend server when app closes
+  if (backendProcess) {
+    backendProcess.kill();
+    backendProcess = null;
+  }
+  
   if (process.platform !== "darwin") {
     app.quit();
     win = null;
@@ -61,4 +115,11 @@ app.on("activate", () => {
   }
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  startBackendServer();
+  
+  // Wait a moment for backend to start, then create window
+  setTimeout(() => {
+    createWindow();
+  }, 2000);
+});
