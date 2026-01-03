@@ -41,7 +41,7 @@ const InstitutesPage: React.FC = () => {
   );
   const [formData, setFormData] = useState({
     id: "",
-    name: "",
+    institute_name: "",
     district: "",
     zone: "",
   });
@@ -83,7 +83,7 @@ const InstitutesPage: React.FC = () => {
 
   const resetForm = () => {
     setEditingInstitute(null);
-    setFormData({ id: "", name: "", district: "", zone: "" });
+    setFormData({ id: "", institute_name: "", district: "", zone: "" });
   };
 
   return (
@@ -116,9 +116,12 @@ const InstitutesPage: React.FC = () => {
                   <div>
                     <Label>Name *</Label>
                     <Input
-                      value={formData.name}
+                      value={formData.institute_name}
                       onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
+                        setFormData({
+                          ...formData,
+                          institute_name: e.target.value,
+                        })
                       }
                       required
                     />
@@ -170,10 +173,10 @@ const InstitutesPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {institutes.map((institute) => (
-                    <TableRow key={institute.id}>
+                  {institutes.map((institute: Institute) => (
+                    <TableRow key={institute._id}>
                       <TableCell className="font-medium">
-                        {institute.name}
+                        {institute.institute_name}
                       </TableCell>
                       <TableCell>{institute.district || "-"}</TableCell>
                       <TableCell>{institute.zone || "-"}</TableCell>
@@ -185,8 +188,8 @@ const InstitutesPage: React.FC = () => {
                             onClick={() => {
                               setEditingInstitute(institute);
                               setFormData({
-                                id: institute.id.toString(),
-                                name: institute.name,
+                                id: institute._id.toString(),
+                                institute_name: institute.institute_name,
                                 district: institute.district || "",
                                 zone: institute.zone || "",
                               });
@@ -198,7 +201,7 @@ const InstitutesPage: React.FC = () => {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDelete(institute.id)}
+                            onClick={() => handleDelete(institute._id)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

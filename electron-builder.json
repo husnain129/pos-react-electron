@@ -6,8 +6,24 @@
   "directories": {
     "output": "release/${version}"
   },
-  "files": ["dist", "dist-electron", "server/**/*", ".env", "package.json"],
-  "asarUnpack": ["server/**/*", ".env"],
+  "files": [
+    "dist",
+    "dist-electron",
+    ".env",
+    "package.json",
+    "node_modules/pg/**/*",
+    "node_modules/pg-*/**/*",
+    "node_modules/postgres-*/**/*",
+    "node_modules/buffer-writer/**/*",
+    "node_modules/packet-reader/**/*",
+    "node_modules/pgpass/**/*"
+  ],
+  "asarUnpack": [
+    ".env",
+    "node_modules/pg/**/*",
+    "node_modules/pg-*/**/*",
+    "node_modules/postgres-*/**/*"
+  ],
   "mac": {
     "target": ["dmg"],
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"

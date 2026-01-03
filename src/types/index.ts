@@ -40,8 +40,8 @@ export interface Category {
 }
 
 export interface Institute {
-  id: number;
-  name: string;
+  _id: number;
+  institute_name: string;
   district?: string;
   zone?: string;
   created_at?: string;

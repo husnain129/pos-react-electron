@@ -34,7 +34,7 @@ import {
   useInstitutes,
   useUpdateCategory,
 } from "../hooks/useQueries";
-import type { Category } from "../types";
+import type { Category, Institute } from "../types";
 
 const CategoriesPage: React.FC = () => {
   const { data: categories = [], isLoading: categoriesLoading } =
@@ -158,9 +158,12 @@ const CategoriesPage: React.FC = () => {
                         <SelectValue placeholder="Select institute" />
                       </SelectTrigger>
                       <SelectContent>
-                        {institutes.map((inst) => (
-                          <SelectItem key={inst.id} value={inst.id.toString()}>
-                            {inst.name}
+                        {institutes.map((inst: Institute) => (
+                          <SelectItem
+                            key={inst._id}
+                            value={inst._id.toString()}
+                          >
+                            {inst.institute_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -195,15 +198,16 @@ const CategoriesPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {categories.map((category) => (
+                  {categories.map((category: Category) => (
                     <TableRow key={category._id}>
                       <TableCell className="font-medium">
                         {category.name}
                       </TableCell>
                       <TableCell>{category.description || "-"}</TableCell>
                       <TableCell>
-                        {institutes.find((i) => i.id === category.institute_id)
-                          ?.name || "-"}
+                        {institutes.find(
+                          (i: Institute) => i._id === category.institute_id
+                        )?.institute_name || "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

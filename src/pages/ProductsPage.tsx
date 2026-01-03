@@ -37,7 +37,7 @@ import {
   useProducts,
   useUpdateProduct,
 } from "../hooks/useQueries";
-import type { Product } from "../types";
+import type { Category, Institute, Product } from "../types";
 
 const ProductsPage: React.FC = () => {
   const { data: products = [], isLoading: productsLoading } = useProducts();
@@ -136,7 +136,7 @@ const ProductsPage: React.FC = () => {
     });
   };
 
-  const filteredProducts = products.filter((product) => {
+  const filteredProducts = products.filter((product: Product) => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product._id.toString().includes(searchTerm);
@@ -252,7 +252,7 @@ const ProductsPage: React.FC = () => {
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((cat) => (
+                        {categories.map((cat: Category) => (
                           <SelectItem key={cat._id} value={cat._id.toString()}>
                             {cat.name}
                           </SelectItem>
@@ -273,9 +273,12 @@ const ProductsPage: React.FC = () => {
                         <SelectValue placeholder="Select institute" />
                       </SelectTrigger>
                       <SelectContent>
-                        {institutes.map((inst) => (
-                          <SelectItem key={inst.id} value={inst.id.toString()}>
-                            {inst.name}
+                        {institutes.map((inst: Institute) => (
+                          <SelectItem
+                            key={inst._id}
+                            value={inst._id.toString()}
+                          >
+                            {inst.institute_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -323,9 +326,9 @@ const ProductsPage: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Institutes</SelectItem>
-                    {institutes.map((inst) => (
-                      <SelectItem key={inst.id} value={inst.id.toString()}>
-                        {inst.name}
+                    {institutes.map((inst: Institute) => (
+                      <SelectItem key={inst._id} value={inst._id.toString()}>
+                        {inst.institute_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -355,7 +358,7 @@ const ProductsPage: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredProducts.map((product) => (
+                    filteredProducts.map((product: Product) => (
                       <TableRow key={product._id}>
                         <TableCell className="font-medium">
                           {product._id}
