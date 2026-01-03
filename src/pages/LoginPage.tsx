@@ -16,6 +16,8 @@ import { Label } from "../components/label";
 import { usersAPI } from "../services/api";
 import { useAuthStore } from "../store/authStore";
 
+import logo from "../assets/logo.png";
+
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
@@ -67,7 +69,13 @@ const LoginPage: React.FC = () => {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="w-20 h-20 bg-[#17411c] rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-3xl">CH</span>
+              <img
+                src={logo}
+                width={100}
+                height={100}
+                alt="Creative Hands Logo"
+              />
+              {/* <span className="text-white font-bold text-3xl">CH</span> */}
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-[#17411c]">

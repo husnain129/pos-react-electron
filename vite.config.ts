@@ -1,7 +1,7 @@
-import { defineConfig } from "vite";
-import path from "path";
-import electron from "vite-plugin-electron/simple";
 import react from "@vitejs/plugin-react";
+import path from "path";
+import { defineConfig } from "vite";
+import electron from "vite-plugin-electron/simple";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -11,6 +11,27 @@ export default defineConfig({
       main: {
         // Shortcut of `build.lib.entry`.
         entry: "electron/main.ts",
+        vite: {
+          build: {
+            rollupOptions: {
+              external: [
+                "electron",
+                "pg",
+                "pg-native",
+                "pg-pool",
+                "pg-protocol",
+                "pg-types",
+                "pgpass",
+                "buffer-writer",
+                "packet-reader",
+                "postgres-array",
+                "postgres-bytea",
+                "postgres-date",
+                "postgres-interval",
+              ],
+            },
+          },
+        },
       },
       preload: {
         // Shortcut of `build.rollupOptions.input`.

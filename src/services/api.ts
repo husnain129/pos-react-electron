@@ -1,103 +1,212 @@
-import axios from "axios";
-import type {
-  Category,
-  Customer,
-  Institute,
-  Product,
-  Settings,
-  Transaction,
-  User,
-} from "../types";
+// Check if we're in Electron environment
+const isElectron = typeof window !== "undefined" && window.ipcRenderer;
 
-const API_URL = "http://localhost:8001/api";
-
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+// Wrapper to handle both HTTP (dev) and IPC (production)
+const apiCall = async (channel: string, ...args: any[]) => {
+  if (isElectron) {
+    // Use IPC in Electron
+    return await window.ipcRenderer.invoke(channel, ...args);
+  } else {
+    // Fallback to HTTP for web/dev
+    throw new Error(
+      "HTTP fallback not implemented. Running in Electron mode only."
+    );
+  }
+};
 
 // Users API
 export const usersAPI = {
-  login: (username: string, password: string) =>
-    api.post<User>("/users/login", { username, password }),
-  logout: (userId: number) => api.get(`/users/logout/${userId}`),
-  getAll: () => api.get<User[]>("/users/all"),
-  getById: (userId: number) => api.get<User>(`/users/user/${userId}`),
-  create: (userData: any) => api.post<User>("/users/post", userData),
-  update: (userData: any) => api.post<User>("/users/post", userData),
-  delete: (userId: number) => api.delete(`/users/user/${userId}`),
+  login: async (username: string, password: string) => {
+    const data = await apiCall("users:login", username, password);
+    return { data };
+  },
+  logout: async (userId: number) => {
+    await apiCall("users:logout", userId);
+    return { data: null };
+  },
+  getAll: async () => {
+    const data = await apiCall("users:getAll");
+    return { data };
+  },
+  getById: async (userId: number) => {
+    const data = await apiCall("users:getById", userId);
+    return { data };
+  },
+  create: async (userData: any) => {
+    const data = await apiCall("users:create", userData);
+    return { data };
+  },
+  update: async (userData: any) => {
+    const data = await apiCall("users:update", userData);
+    return { data };
+  },
+  delete: async (userId: number) => {
+    await apiCall("users:delete", userId);
+    return { data: null };
+  },
 };
 
 // Products/Inventory API
 export const inventoryAPI = {
-  getAll: () => api.get<Product[]>("/inventory/products"),
-  getById: (productId: number) =>
-    api.get<Product>(`/inventory/product/${productId}`),
-  getBySKU: (skuCode: string) =>
-    api.post<Product>("/inventory/product/sku", { skuCode }),
-  create: (productData: any) =>
-    api.post<Product>("/inventory/product", productData),
-  update: (productData: any) =>
-    api.post<Product>("/inventory/product", productData),
-  delete: (productId: number) => api.delete(`/inventory/product/${productId}`),
+  getAll: async () => {
+    const data = await apiCall("inventory:getAll");
+    return { data };
+  },
+  getById: async (productId: number) => {
+    const data = await apiCall("inventory:getById", productId);
+    return { data };
+  },
+  getBySKU: async (skuCode: string) => {
+    const data = await apiCall("inventory:getBySKU", skuCode);
+    return { data };
+  },
+  create: async (productData: any) => {
+    const data = await apiCall("inventory:create", productData);
+    return { data };
+  },
+  update: async (productData: any) => {
+    const data = await apiCall("inventory:update", productData);
+    return { data };
+  },
+  delete: async (productId: number) => {
+    await apiCall("inventory:delete", productId);
+    return { data: null };
+  },
 };
 
 // Categories API
 export const categoriesAPI = {
-  getAll: () => api.get<Category[]>("/categories/all"),
-  create: (categoryData: any) =>
-    api.post<Category>("/categories/category", categoryData),
-  update: (categoryData: any) => api.put("/categories/category", categoryData),
-  delete: (categoryId: number) =>
-    api.delete(`/categories/category/${categoryId}`),
+  getAll: async () => {
+    const data = await apiCall("categories:getAll");
+    return { data };
+  },
+  create: async (categoryData: any) => {
+    const data = await apiCall("categories:create", categoryData);
+    return { data };
+  },
+  update: async (categoryData: any) => {
+    const data = await apiCall("categories:update", categoryData);
+    return { data };
+  },
+  delete: async (categoryId: number) => {
+    await apiCall("categories:delete", categoryId);
+    return { data: null };
+  },
 };
 
 // Institutes API
 export const institutesAPI = {
-  getAll: () => api.get<Institute[]>("/institutes/all"),
-  getById: (id: number) => api.get<Institute>(`/institutes/institute/${id}`),
-  create: (data: any) => api.post<Institute>("/institutes/institute", data),
-  update: (data: any) => api.post<Institute>("/institutes/institute", data),
-  delete: (id: number) => api.delete(`/institutes/institute/${id}`),
+  getAll: async () => {
+    const data = await apiCall("institutes:getAll");
+    return { data };
+  },
+  getById: async (id: number) => {
+    const data = await apiCall("institutes:getById", id);
+    return { data };
+  },
+  create: async (data: any) => {
+    const result = await apiCall("institutes:create", data);
+    return { data: result };
+  },
+  update: async (data: any) => {
+    const result = await apiCall("institutes:update", data);
+    return { data: result };
+  },
+  delete: async (id: number) => {
+    await apiCall("institutes:delete", id);
+    return { data: null };
+  },
 };
 
 // Customers API
 export const customersAPI = {
-  getAll: () => api.get<Customer[]>("/customers/all"),
-  getById: (customerId: number) =>
-    api.get<Customer>(`/customers/customer/${customerId}`),
-  create: (customerData: any) =>
-    api.post<Customer>("/customers/customer", customerData),
-  update: (customerData: any) => api.put("/customers/customer", customerData),
-  delete: (customerId: number) =>
-    api.delete(`/customers/customer/${customerId}`),
+  getAll: async () => {
+    const data = await apiCall("customers:getAll");
+    return { data };
+  },
+  getById: async (customerId: number) => {
+    const data = await apiCall("customers:getById", customerId);
+    return { data };
+  },
+  create: async (customerData: any) => {
+    const data = await apiCall("customers:create", customerData);
+    return { data };
+  },
+  update: async (customerData: any) => {
+    const data = await apiCall("customers:update", customerData);
+    return { data };
+  },
+  delete: async (customerId: number) => {
+    await apiCall("customers:delete", customerId);
+    return { data: null };
+  },
 };
 
 // Transactions API
 export const transactionsAPI = {
-  getAll: () => api.get<Transaction[]>("/transactions/all"),
-  getById: (transactionId: number) =>
-    api.get<Transaction>(`/transactions/${transactionId}`),
-  getByDate: (start: string, end: string, status: number, user?: number) =>
-    api.get<Transaction[]>("/transactions/by-date", {
-      params: { start, end, status, user: user || 0 },
-    }),
-  getOnHold: () => api.get<Transaction[]>("/transactions/on-hold"),
-  getCustomerOrders: () =>
-    api.get<Transaction[]>("/transactions/customer-orders"),
-  create: (transactionData: any) =>
-    api.post("/transactions/new", transactionData),
-  update: (transactionData: any) =>
-    api.put("/transactions/new", transactionData),
-  delete: (orderId: number) => api.post("/transactions/delete", { orderId }),
+  getAll: async () => {
+    const data = await apiCall("transactions:getAll");
+    return { data };
+  },
+  getById: async (transactionId: number) => {
+    const data = await apiCall("transactions:getById", transactionId);
+    return { data };
+  },
+  getByDate: async (
+    start: string,
+    end: string,
+    status: number,
+    user?: number
+  ) => {
+    const data = await apiCall(
+      "transactions:getByDate",
+      start,
+      end,
+      status,
+      user
+    );
+    return { data };
+  },
+  getOnHold: async () => {
+    const data = await apiCall("transactions:getOnHold");
+    return { data };
+  },
+  getCustomerOrders: async () => {
+    const data = await apiCall("transactions:getCustomerOrders");
+    return { data };
+  },
+  create: async (transactionData: any) => {
+    const data = await apiCall("transactions:create", transactionData);
+    return { data };
+  },
+  update: async (transactionData: any) => {
+    const data = await apiCall("transactions:update", transactionData);
+    return { data };
+  },
+  delete: async (orderId: number) => {
+    await apiCall("transactions:delete", orderId);
+    return { data: null };
+  },
 };
 
 // Settings API
 export const settingsAPI = {
-  get: () => api.get<Settings>("/settings/get"),
-  update: (settingsData: any) => api.post("/settings/post", settingsData),
+  get: async () => {
+    const data = await apiCall("settings:get");
+    return { data };
+  },
+  update: async (settingsData: any) => {
+    const data = await apiCall("settings:update", settingsData);
+    return { data };
+  },
 };
 
-export default api;
+export default {
+  usersAPI,
+  inventoryAPI,
+  categoriesAPI,
+  institutesAPI,
+  customersAPI,
+  transactionsAPI,
+  settingsAPI,
+};

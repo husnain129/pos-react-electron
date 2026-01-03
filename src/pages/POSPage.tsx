@@ -11,6 +11,7 @@ import { Separator } from "../components/separator";
 import { useCreateTransaction, useProducts } from "../hooks/useQueries";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
+import type { Product } from "../types";
 
 const POSPage: React.FC = () => {
   const { data: products = [], isLoading: loading } = useProducts();
@@ -51,7 +52,7 @@ const POSPage: React.FC = () => {
 
       // Search for product by barcode
       const product = products.find(
-        (p) => p.barcode && p.barcode === barcodeInput.trim()
+        (p: Product) => p.barcode && p.barcode === barcodeInput.trim()
       );
 
       if (product) {
@@ -174,11 +175,11 @@ const POSPage: React.FC = () => {
 
   const filteredProducts = products
     .filter(
-      (p) =>
+      (p: Product) =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p._id.toString().includes(searchTerm)
     )
-    .sort((a, b) => Number(a._id) - Number(b._id));
+    .sort((a: Product, b: Product) => Number(a._id) - Number(b._id));
 
   const handlePrintInvoice = () => {
     window.print();
@@ -391,7 +392,7 @@ const POSPage: React.FC = () => {
             <CardContent>
               <ScrollArea className="h-[600px]">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {filteredProducts.map((product) => (
+                  {filteredProducts.map((product: Product) => (
                     <Card
                       key={product._id}
                       className="cursor-pointer hover:shadow-lg transition-shadow"

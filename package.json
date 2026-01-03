@@ -7,6 +7,7 @@
     "dev": "vite",
     "server": "bun run server/index.ts",
     "build:web": "vite build",
+    "build:server": "bunx tsc -p tsconfig.server.json",
     "build:desktop": "bun run scripts/build-desktop.ts",
     "start:web": "vite preview",
     "start:desktop": "electron dist-electron/main.js",

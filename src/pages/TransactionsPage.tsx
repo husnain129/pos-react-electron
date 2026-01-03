@@ -34,7 +34,7 @@ const TransactionsPage: React.FC = () => {
 
   const filteredTransactions = searchTerm
     ? transactions.filter(
-        (t) =>
+        (t: Transaction) =>
           t._id.toString().includes(searchTerm) ||
           t.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           t.user?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -54,7 +54,7 @@ const TransactionsPage: React.FC = () => {
   };
 
   const totalSales = filteredTransactions.reduce(
-    (sum, t) => sum + (Number(t.total) || 0),
+    (sum: number, t: Transaction) => sum + (Number(t.total) || 0),
     0
   );
 
@@ -158,7 +158,7 @@ const TransactionsPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((transaction) => (
+                  {filteredTransactions.map((transaction: Transaction) => (
                     <TableRow key={transaction._id}>
                       <TableCell className="font-medium">
                         #{transaction._id}
@@ -205,7 +205,7 @@ const TransactionsPage: React.FC = () => {
               {/* Invoice Header */}
               <div className="text-center mb-8 border-b pb-6">
                 <div className="flex justify-center mb-4">
-                  <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center p-3 border-2 border-[#17411c]">
+                  <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center p-3">
                     <img
                       src={logo}
                       alt="Creative Hands Logo"

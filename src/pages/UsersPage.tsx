@@ -384,7 +384,7 @@ const UsersPage: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    users.map((user) => (
+                    users.map((user: User) => (
                       <TableRow key={user._id}>
                         <TableCell className="font-medium">
                           {user._id}
