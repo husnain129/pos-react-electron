@@ -37,7 +37,7 @@ async function main() {
 		stdio: "inherit",
 	});
 
-	execSync("rm temp-config.json");
+	execSync("del temp-config.json");
 
 	console.log("Build complete!");
 	rl.close();
