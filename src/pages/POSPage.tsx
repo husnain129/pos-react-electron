@@ -23,6 +23,8 @@ const POSPage: React.FC = () => {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const barcodeInputRef = React.useRef<HTMLInputElement>(null);
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } =
     useCartStore();
   const { user } = useAuthStore();
@@ -34,6 +36,63 @@ const POSPage: React.FC = () => {
   const taxAmount = (subtotalAfterDiscount * taxPercentage) / 100;
   const totalWithTax = subtotalAfterDiscount + taxAmount;
   const changeAmount = paidAmount - totalWithTax;
+
+  // Auto-focus barcode scanner input when page loads and after adding items
+  React.useEffect(() => {
+    if (!showInvoice && barcodeInputRef.current) {
+      barcodeInputRef.current.focus();
+    }
+  }, [showInvoice, items.length]);
+
+  // Handle barcode scan
+  const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && barcodeInput.trim()) {
+      e.preventDefault();
+
+      // Search for product by barcode
+      const product = products.find(
+        (p) => p.barcode && p.barcode === barcodeInput.trim()
+      );
+
+      if (product) {
+        if (product.quantity > 0) {
+          addItem(product);
+          Swal.fire({
+            icon: "success",
+            title: "Added to Cart",
+            text: `${product.name} added successfully!`,
+            timer: 1500,
+            showConfirmButton: false,
+            position: "top-end",
+            toast: true,
+          });
+        } else {
+          Swal.fire({
+            icon: "warning",
+            title: "Out of Stock",
+            text: `${product.name} is currently out of stock!`,
+            timer: 2000,
+            showConfirmButton: false,
+            position: "top-end",
+            toast: true,
+          });
+        }
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Not Found",
+          text: `No product found with barcode: ${barcodeInput}`,
+          timer: 2000,
+          showConfirmButton: false,
+          position: "top-end",
+          toast: true,
+        });
+      }
+
+      // Clear barcode input
+      setBarcodeInput("");
+    }
+  };
 
   const handleCheckout = async () => {
     if (items.length === 0) {
@@ -300,11 +359,24 @@ const POSPage: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* Hidden Barcode Scanner Input - Receives input from physical scanner */}
+          <input
+            ref={barcodeInputRef}
+            type="text"
+            value={barcodeInput}
+            onChange={(e) => setBarcodeInput(e.target.value)}
+            onKeyDown={handleBarcodeScan}
+            className="absolute opacity-0 pointer-events-none"
+            autoComplete="off"
+            aria-label="Barcode scanner input"
+          />
+
           {/* Products List */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <div className="space-y-4">
                 <h2 className="text-2xl font-bold">Products</h2>
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input

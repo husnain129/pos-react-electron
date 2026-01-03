@@ -9,7 +9,7 @@ router.get("/", (_req: Request, res: Response) => {
 
 router.get("/all", async (_req: Request, res: Response) => {
   try {
-    const result = await db.query("SELECT * FROM institutes ORDER BY name");
+    const result = await db.query("SELECT * FROM institutes ORDER BY id DESC");
     res.json(result.rows);
   } catch (err: any) {
     console.error("Error fetching institutes:", err);

@@ -10,7 +10,7 @@ router.get("/", (_req: Request, res: Response) => {
 router.get("/all", async (_req: Request, res: Response) => {
   try {
     const result = await db.query(
-      "SELECT id as _id, name, description, institute_id FROM categories ORDER BY id"
+      "SELECT id as _id, name, description, institute_id FROM categories ORDER BY id DESC"
     );
     res.send(result.rows);
   } catch (err: any) {

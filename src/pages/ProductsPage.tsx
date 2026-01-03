@@ -338,6 +338,7 @@ const ProductsPage: React.FC = () => {
                   <TableRow>
                     <TableHead>ID</TableHead>
                     <TableHead>Product Name</TableHead>
+                    <TableHead>Barcode</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Price</TableHead>
                     <TableHead>Quantity</TableHead>
@@ -348,7 +349,7 @@ const ProductsPage: React.FC = () => {
                 <TableBody>
                   {filteredProducts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <Package className="w-12 h-12 mx-auto text-gray-300 mb-2" />
                         <p className="text-gray-500">No products found</p>
                       </TableCell>
@@ -360,6 +361,11 @@ const ProductsPage: React.FC = () => {
                           {product._id}
                         </TableCell>
                         <TableCell>{product.name}</TableCell>
+                        <TableCell>
+                          <span className="font-mono text-sm">
+                            {product.barcode || "-"}
+                          </span>
+                        </TableCell>
                         <TableCell>{product.product_category || "-"}</TableCell>
                         <TableCell>
                           Rs {Number(product.price || 0).toFixed(2)}

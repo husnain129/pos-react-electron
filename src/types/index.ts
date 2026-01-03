@@ -16,6 +16,7 @@ export interface User {
 export interface Product {
   _id: number;
   name: string;
+  barcode?: string;
   price: number;
   cost_price?: number;
   category: number;
