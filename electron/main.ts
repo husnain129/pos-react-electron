@@ -211,7 +211,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.mjs"),
     },
 
-    fullscreen: true,
+    width: 1024,
+    height: 728,
   });
 
   // Test active push message to Renderer-process.
