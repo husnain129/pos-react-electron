@@ -439,7 +439,7 @@ export const dbOperations = {
   transactions: {
     getAll: async () => {
       const result = await query(
-        `SELECT t.*, u.name as user_name 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          ORDER BY t.id DESC`
@@ -449,7 +449,7 @@ export const dbOperations = {
 
     getById: async (transactionId: number) => {
       const result = await query(
-        `SELECT t.*, u.name as user_name 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.id = $1`,
@@ -464,7 +464,7 @@ export const dbOperations = {
       status: number,
       user?: number
     ) => {
-      let queryText = `SELECT t.*, u.name as user_name 
+      let queryText = `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
                        FROM transactions t 
                        LEFT JOIN users u ON t.user_id = u.id 
                        WHERE t.created_at BETWEEN $1 AND $2 AND t.status = $3`;
@@ -482,7 +482,7 @@ export const dbOperations = {
 
     getOnHold: async () => {
       const result = await query(
-        `SELECT t.*, u.name as user_name 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.status = 0 
@@ -493,7 +493,7 @@ export const dbOperations = {
 
     getCustomerOrders: async () => {
       const result = await query(
-        `SELECT t.*, u.name as user_name 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.status = 2 
@@ -504,19 +504,21 @@ export const dbOperations = {
 
     create: async (transactionData: any) => {
       const result = await query(
-        `INSERT INTO transactions (user_id, customer_id, items, total, payment_method, status, notes, discount, tax) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+        `INSERT INTO transactions (user_id, customer_id, customer_name, items, total_amount, payment_method, payment_status, status, discount, tax, ref_number) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
          RETURNING *`,
         [
           transactionData.user_id,
           transactionData.customer_id || null,
+          transactionData.customer_name || null,
           JSON.stringify(transactionData.items),
           transactionData.total,
           transactionData.payment_method,
+          transactionData.payment_status || 'paid',
           transactionData.status,
-          transactionData.notes || "",
           transactionData.discount || 0,
           transactionData.tax || 0,
+          transactionData.ref_number || null,
         ]
       );
 
@@ -536,20 +538,22 @@ export const dbOperations = {
     update: async (transactionData: any) => {
       const result = await query(
         `UPDATE transactions 
-         SET user_id = $1, customer_id = $2, items = $3, total = $4, payment_method = $5, 
-             status = $6, notes = $7, discount = $8, tax = $9, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $10 
+         SET user_id = $1, customer_id = $2, customer_name = $3, items = $4, total_amount = $5, payment_method = $6, 
+             payment_status = $7, status = $8, discount = $9, tax = $10, ref_number = $11, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $12 
          RETURNING *`,
         [
           transactionData.user_id,
           transactionData.customer_id || null,
+          transactionData.customer_name || null,
           JSON.stringify(transactionData.items),
           transactionData.total,
           transactionData.payment_method,
+          transactionData.payment_status || 'paid',
           transactionData.status,
-          transactionData.notes || "",
           transactionData.discount || 0,
           transactionData.tax || 0,
+          transactionData.ref_number || null,
           transactionData.id,
         ]
       );

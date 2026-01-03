@@ -203,16 +203,12 @@ const TransactionsPage: React.FC = () => {
           {selectedTransaction && (
             <div className="p-6">
               {/* Invoice Header */}
-              <div className="text-center mb-8 border-b pb-6">
-                <div className="flex justify-center mb-4">
-                  <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center p-3">
-                    <img
-                      src={logo}
-                      alt="Creative Hands Logo"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                </div>
+              <div className="text-center border-b">
+                <img
+                  src={logo}
+                  alt="Creative Hands Logo"
+                  className="!w-[120px] !h-[120px] object-cover mx-auto"
+                />
                 <h1 className="text-3xl font-bold text-[#17411c] mb-2">
                   Creative Hands
                 </h1>
