@@ -6,7 +6,8 @@
   "directories": {
     "output": "release/${version}"
   },
-  "files": ["dist", "dist-electron"],
+  "files": ["dist", "dist-electron", "server/**/*", ".env", "package.json"],
+  "asarUnpack": ["server/**/*", ".env"],
   "mac": {
     "target": ["dmg"],
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
