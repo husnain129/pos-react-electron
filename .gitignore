@@ -27,3 +27,8 @@ dist-ssr
 dist-electron
 coverage
 release
+
+# Environment variables
+.env
+.env.local
+.env.production

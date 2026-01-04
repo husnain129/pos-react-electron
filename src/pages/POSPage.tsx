@@ -176,8 +176,11 @@ const POSPage: React.FC = () => {
   const filteredProducts = products
     .filter(
       (p: Product) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p._id.toString().includes(searchTerm)
+        (searchTerm &&
+          (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p._id.toString().includes(searchTerm))) ||
+        (barcodeInput && p.barcode && p.barcode.includes(barcodeInput)) ||
+        (!searchTerm && !barcodeInput)
     )
     .sort((a: Product, b: Product) => Number(a._id) - Number(b._id));
 
@@ -360,18 +363,6 @@ const POSPage: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Hidden Barcode Scanner Input - Receives input from physical scanner */}
-          <input
-            ref={barcodeInputRef}
-            type="text"
-            value={barcodeInput}
-            onChange={(e) => setBarcodeInput(e.target.value)}
-            onKeyDown={handleBarcodeScan}
-            className="absolute opacity-0 pointer-events-none"
-            autoComplete="off"
-            aria-label="Barcode scanner input"
-          />
-
           {/* Products List */}
           <Card className="lg:col-span-2">
             <CardHeader>
@@ -385,6 +376,20 @@ const POSPage: React.FC = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
+                  />
+                </div>
+
+                <div className="relative">
+                  <ShoppingCart className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    ref={barcodeInputRef}
+                    placeholder="Scan or enter barcode..."
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={handleBarcodeScan}
+                    className="pl-10 font-mono"
+                    autoComplete="off"
+                    autoFocus
                   />
                 </div>
               </div>
