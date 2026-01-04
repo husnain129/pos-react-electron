@@ -45,6 +45,43 @@ const POSPage: React.FC = () => {
     }
   }, [showInvoice, items.length]);
 
+  // Auto-add product when barcode is entered (without pressing Enter)
+  React.useEffect(() => {
+    if (barcodeInput.trim().length >= 13) {
+      // EAN-13 barcodes are 13 digits
+      const product = products.find(
+        (p: Product) => p.barcode && p.barcode === barcodeInput.trim()
+      );
+
+      if (product) {
+        if (product.quantity > 0) {
+          addItem(product);
+          Swal.fire({
+            icon: "success",
+            title: "Added to Cart",
+            text: `${product.name} added successfully!`,
+            timer: 1500,
+            showConfirmButton: false,
+            position: "top-end",
+            toast: true,
+          });
+        } else {
+          Swal.fire({
+            icon: "warning",
+            title: "Out of Stock",
+            text: `${product.name} is currently out of stock!`,
+            timer: 2000,
+            showConfirmButton: false,
+            position: "top-end",
+            toast: true,
+          });
+        }
+        // Clear barcode input
+        setBarcodeInput("");
+      }
+    }
+  }, [barcodeInput, products, addItem]);
+
   // Handle barcode scan
   const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && barcodeInput.trim()) {

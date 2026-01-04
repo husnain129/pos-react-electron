@@ -1,54 +1,108 @@
-# Bun + Electron + React + Tailwind Boilerplate
-A modern boilerplate to build cross-platform, high-performance desktop applications using Electron, React, Tailwind CSS, and other cutting-edge web development tools.
+# Creative Hands POS System
 
-![AppHome](https://8upload.com//image/6902000b4cc7e/Build_modern_apps.png)
+A Point of Sale system built with Electron, React, TypeScript, and PostgreSQL.
 
-## Features
+## Prerequisites
 
-- **ElectronJS**: Cross-platform desktop app development with web technologies.
-- **ReactJS**: Efficient library for building dynamic user interfaces.
-- **TailwindCSS**: Utility-first CSS framework for fast UI development.
-- **ShadcnUI**: Reusable and customizable components to speed up development.
-- **Vite**: Lightning-fast development server with hot module replacement (HMR).
-- **Vitest**: Fast and simple unit testing for React components.
-- **React Testing Library**: Helps test React components in a user-centric way.
-- **Happy DOM**: A fast DOM simulation for testing React components.
-- **BiomeJS**: A fast and reliable linter and code formatter for consistent code style.
+### Windows Setup
 
-## Getting Started
+1. **Node.js** (v18 or higher)
+   - Download from [nodejs.org](https://nodejs.org/)
+   - Verify: `node --version`
 
-1. Clone or Fork the Repository
+2. **PostgreSQL** (v14 or higher)
+   - Download from [postgresql.org](https://www.postgresql.org/download/windows/)
+   - During installation, remember your password
+   - Add PostgreSQL to PATH
 
-You can either use this template by clicking the "Use this template" button or clone the repository to your local machine:
+3. **Bun** (Package Manager)
+   ```bash
+   npm install -g bun
+   ```
+
+## Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd POS-react
+   ```
+
+2. **Install dependencies**
+   ```bash
+   bun install
+   ```
+
+3. **Setup Database**
+   
+   Create database:
+   ```bash
+   psql -U postgres
+   CREATE DATABASE pos;
+   \q
+   ```
+
+4. **Configure Environment**
+   
+   Create `.env` file in root:
+   ```env
+   PORT=8001
+   DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/pos?sslmode=disable
+   NODE_ENV=development
+   ```
+   Replace `YOUR_PASSWORD` with your PostgreSQL password.
+
+5. **Run Database Migrations**
+   ```bash
+   psql -U postgres -d pos -f server/db/schema.sql
+   ```
+
+## Running the Application
+
+### Development Mode
 ```bash
-git clone https://github.com/Molizanee/electron-react-tailwind.git && cd electron-react-tailwind
+# Run web version
+bun run dev
+
+# Run desktop app (Electron)
+bun run dev:desktop
 ```
 
-2. Install Dependencies
-
-Once inside the project directory, install all required dependencies:
+### Build Desktop App
 ```bash
-bun i
+bun run build:desktop
 ```
 
-3. Run the Development Server
+The installer will be in `release/` folder.
 
-Start the project in development mode with hot-reloading enabled:
-```bash
-bun dev
-```
+## Default Login
+- **Username**: `admin`
+- **Password**: `admin`
 
-4. Run Tests
+## Key Features
+- Product management with barcode support
+- Institute and category organization
+- POS with barcode scanner integration
+- Transaction history and reporting
+- CSV export functionality
+- Multi-user support with permissions
 
-Run all tests with Vitest:
-```bash
-bun run test
-```
+## Tech Stack
+- **Frontend**: React, TypeScript, TailwindCSS
+- **Backend**: Node.js, PostgreSQL
+- **Desktop**: Electron
+- **Build**: Vite
 
-To open the Vitest UI for a visual overview of your tests:
-```bash
-bun run test:ui
-```
+## Troubleshooting
+
+**Database Connection Issues:**
+- Ensure PostgreSQL service is running
+- Check DATABASE_URL in `.env` file
+- Verify PostgreSQL user and password
+
+**Build Errors:**
+- Delete `node_modules` and reinstall: `bun install`
+- Clear build cache: `rm -rf dist dist-electron release`
 
 5. Build the Web Application
 

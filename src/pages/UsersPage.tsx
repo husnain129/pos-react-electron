@@ -63,11 +63,21 @@ const UsersPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Convert permission strings to integers
+      const userData = {
+        ...formData,
+        perm_products: formData.perm_products === "on" ? 1 : 0,
+        perm_categories: formData.perm_categories === "on" ? 1 : 0,
+        perm_transactions: formData.perm_transactions === "on" ? 1 : 0,
+        perm_users: formData.perm_users === "on" ? 1 : 0,
+        perm_settings: formData.perm_settings === "on" ? 1 : 0,
+      };
+
       if (editingUser) {
-        await updateUser.mutateAsync(formData);
+        await updateUser.mutateAsync(userData);
         Swal.fire("Success", "User updated successfully", "success");
       } else {
-        await createUser.mutateAsync(formData);
+        await createUser.mutateAsync(userData);
         Swal.fire("Success", "User created successfully", "success");
       }
       setIsDialogOpen(false);

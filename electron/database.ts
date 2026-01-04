@@ -123,11 +123,11 @@ export const dbOperations = {
           userData.fullname || "",
           userData.email || "",
           userData.role,
-          userData.perm_products || false,
-          userData.perm_categories || false,
-          userData.perm_transactions || false,
-          userData.perm_users || false,
-          userData.perm_settings || false,
+          userData.perm_products || 0,
+          userData.perm_categories || 0,
+          userData.perm_transactions || 0,
+          userData.perm_users || 0,
+          userData.perm_settings || 0,
         ]
       );
       return result.rows[0];
@@ -145,11 +145,11 @@ export const dbOperations = {
           userData.fullname || "",
           userData.email || "",
           userData.role,
-          userData.perm_products || false,
-          userData.perm_categories || false,
-          userData.perm_transactions || false,
-          userData.perm_users || false,
-          userData.perm_settings || false,
+          userData.perm_products || 0,
+          userData.perm_categories || 0,
+          userData.perm_transactions || 0,
+          userData.perm_users || 0,
+          userData.perm_settings || 0,
           userData.id,
         ]
       );
