@@ -2,6 +2,7 @@ import { Eye, Search } from "lucide-react";
 import moment from "moment";
 import React, { useState } from "react";
 import logo from "../assets/logo.png";
+import qrCode from "../assets/qr.jpeg";
 import { Badge } from "../components/badge";
 import { Button } from "../components/button";
 import { Card, CardContent, CardHeader } from "../components/card";
@@ -342,6 +343,13 @@ const TransactionsPage: React.FC = () => {
               <div className="text-center text-sm text-gray-600 border-t pt-4">
                 <p>Thank you for your business!</p>
                 <p className="mt-2">Served by: {selectedTransaction.user}</p>
+                <div className="mt-4">
+                  <img
+                    src={qrCode}
+                    alt="QR Code"
+                    className="w-32 h-32 mx-auto"
+                  />
+                </div>
               </div>
 
               {/* Action Buttons - Hidden on print */}

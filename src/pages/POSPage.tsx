@@ -2,6 +2,7 @@ import { Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import Swal from "sweetalert2";
 import logo from "../assets/logo.png";
+import qrCode from "../assets/qr.jpeg";
 import { Badge } from "../components/badge";
 import { Button } from "../components/button";
 import { Card, CardContent, CardHeader } from "../components/card";
@@ -365,6 +366,9 @@ const POSPage: React.FC = () => {
               <p className="mt-2">
                 Served by: {user?.fullname || user?.username}
               </p>
+              <div className="mt-4">
+                <img src={qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
+              </div>
             </div>
 
             {/* Action Buttons - Hidden on print */}
