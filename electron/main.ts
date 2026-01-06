@@ -237,39 +237,60 @@ function setupIPCHandlers() {
           const usbDevices = USB.getDeviceList();
           console.log(`Found ${usbDevices.length} USB devices`);
 
-          // Find printer devices (common printer class: 7)
-          const printerDevices = usbDevices.filter((device: any) => {
+          // Log all devices for debugging
+          usbDevices.forEach((device: any, index: number) => {
+            const desc = device.deviceDescriptor;
+            console.log(
+              `Device ${index}: VendorID=${desc.idVendor}, ProductID=${desc.idProduct}`
+            );
+          });
+
+          // Try to find printer - look for any device (remove strict class filtering)
+          // Most thermal printers will be among the USB devices
+          let printerDevice = null;
+
+          for (const device of usbDevices) {
             try {
               device.open();
               const interfaces = device.interfaces || [];
-              device.close();
-              return interfaces.some(
+              const hasClass7 = interfaces.some(
                 (iface: any) =>
                   iface.descriptor && iface.descriptor.bInterfaceClass === 7
               );
-            } catch (e) {
-              return false;
-            }
-          });
+              device.close();
 
-          if (printerDevices.length === 0) {
+              if (hasClass7) {
+                printerDevice = device;
+                console.log("Found printer with class 7");
+                break;
+              }
+            } catch (e) {
+              // Ignore and continue
+            }
+          }
+
+          // If no class 7 device found, try the first USB device
+          // (thermal printers sometimes don't report class correctly)
+          if (!printerDevice && usbDevices.length > 0) {
+            console.log("No class 7 device found, trying first USB device");
+            printerDevice = usbDevices[0];
+          }
+
+          if (!printerDevice) {
             resolve({
               success: false,
               error:
-                "No USB thermal printer found. Make sure POS-80 is connected via USB and powered on.",
+                "No USB devices found. Make sure POS-80 is connected via USB and powered on.",
             });
             return;
           }
 
-          console.log(`Found ${printerDevices.length} USB printer(s)`);
-
           // Get the first printer
-          const printerDevice = printerDevices[0];
           const vendorId = printerDevice.deviceDescriptor.idVendor;
           const productId = printerDevice.deviceDescriptor.idProduct;
 
           console.log(
-            `Using printer with VendorID: ${vendorId}, ProductID: ${productId}`
+            `Using device with VendorID: ${vendorId}, ProductID: ${productId}`
           );
 
           // Create device and printer
