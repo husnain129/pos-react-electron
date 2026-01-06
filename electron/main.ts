@@ -202,6 +202,23 @@ function setupIPCHandlers() {
   ipcMain.handle("settings:update", async (_event, settingsData: any) => {
     return await dbOperations.settings.update(settingsData);
   });
+
+  // Silent printing for thermal receipts
+  ipcMain.handle("print:silent", async () => {
+    if (!win) return { success: false, error: "No window available" };
+
+    try {
+      await win.webContents.print({
+        silent: true,
+        printBackground: true,
+        deviceName: "", // Empty string uses default printer
+      });
+      return { success: true };
+    } catch (error) {
+      console.error("Print error:", error);
+      return { success: false, error: String(error) };
+    }
+  });
 }
 
 function createWindow() {

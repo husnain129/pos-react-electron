@@ -176,33 +176,15 @@ const POSPage: React.FC = () => {
       setShowInvoice(true);
 
       // Print after a delay to ensure DOM is fully rendered
-      setTimeout(async () => {
-        // Check if running in Electron
-        if (window.ipcRenderer) {
-          // Use Electron's silent printing
-          try {
-            const result = await window.ipcRenderer.invoke("print:silent");
-            if (!result.success) {
-              console.error("Silent print failed:", result.error);
-              // Fallback to browser print dialog
-              window.print();
-            }
-          } catch (error) {
-            console.error("Print error:", error);
-            // Fallback to browser print dialog
-            window.print();
-          }
-        } else {
-          // Fallback to browser print dialog for web version
-          window.print();
-        }
-        
+      setTimeout(() => {
+        window.print();
+
         // Close invoice after printing
         setTimeout(() => {
           setShowInvoice(false);
           setInvoiceData(null);
-        }, 500);
-      }, 500);
+        }, 1000);
+      }, 1000);
     } catch (error) {
       console.error("Error completing sale:", error);
       Swal.fire("Error", "Failed to complete sale", "error");
