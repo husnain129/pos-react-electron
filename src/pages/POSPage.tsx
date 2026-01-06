@@ -138,7 +138,10 @@ const POSPage: React.FC = () => {
         user_id: user?._id,
       };
 
-      await createTransaction.mutateAsync(transactionData);
+      // Save transaction to backend
+      const result = await createTransaction.mutateAsync(transactionData);
+
+      console.log("Transaction saved successfully:", result);
 
       // Calculate change for invoice (only for cash payments)
       const actualChange = paymentMethod === "Card" ? 0 : changeAmount;
@@ -161,24 +164,26 @@ const POSPage: React.FC = () => {
         user: user?.fullname || user?.username || "Staff",
       };
 
+      // Clear cart before showing invoice
+      clearCart();
+      setTaxPercentage(0);
+      setDiscountAmount(0);
+      setPaidAmount(0);
+      setPaymentMethod("Cash");
+
       // Set invoice data and trigger print
       setInvoiceData(invoiceData);
       setShowInvoice(true);
 
-      // Print after a short delay to ensure DOM is updated
+      // Print after a delay to ensure DOM is fully rendered
       setTimeout(() => {
         window.print();
-        // Close invoice and clear cart after printing
+        // Close invoice after printing
         setTimeout(() => {
           setShowInvoice(false);
           setInvoiceData(null);
-          clearCart();
-          setTaxPercentage(0);
-          setDiscountAmount(0);
-          setPaidAmount(0);
-          setPaymentMethod("Cash");
-        }, 100);
-      }, 100);
+        }, 500);
+      }, 500);
     } catch (error) {
       console.error("Error completing sale:", error);
       Swal.fire("Error", "Failed to complete sale", "error");
