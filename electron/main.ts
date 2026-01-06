@@ -415,6 +415,7 @@ function setupIPCHandlers() {
             },
             pageSize: {
               width: 80000, // 80mm in microns
+              height: 297000, // A4 height in microns (auto-adjust)
             },
           },
           (success, errorType) => {
