@@ -212,7 +212,7 @@ function setupIPCHandlers() {
   ipcMain.handle("print:listPrinters", async () => {
     try {
       if (!win) return { success: false, printers: [] };
-      const printers = await win.webContents.getPrinters();
+      const printers = await win.webContents.getPrintersAsync();
       console.log("Available printers:", printers);
       return {
         success: true,
