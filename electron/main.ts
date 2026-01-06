@@ -211,26 +211,22 @@ function setupIPCHandlers() {
   // Thermal printer
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
     try {
-      // Try different interface paths for macOS
-      const possiblePaths = [
-        "/dev/usb/lp0",
-        "/dev/usb/lp1",
-        "tcp://192.168.1.100", // If using network printer
-        "\\\\localhost\\POS-80", // Windows-style path that might work
+      // Windows printer names to try
+      const possiblePrinterNames = [
+        "POS-80",
+        "POS-80 11.3.0.1",
+        "\\\\localhost\\POS-80",
       ];
 
       let printer: ThermalPrinter | null = null;
-      let connectedPath = "";
+      let connectedName = "";
 
-      // Try to connect using different paths
-      for (const path of possiblePaths) {
+      // Try to connect using different printer names
+      for (const printerName of possiblePrinterNames) {
         try {
           const testPrinter = new ThermalPrinter({
             type: PrinterTypes.EPSON,
-            interface: path,
-            options: {
-              timeout: 2000,
-            },
+            interface: `printer:${printerName}`,
             width: 48,
             characterSet: CharacterSet.PC437_USA,
             removeSpecialCharacters: false,
@@ -240,11 +236,12 @@ function setupIPCHandlers() {
           const isConnected = await testPrinter.isPrinterConnected();
           if (isConnected) {
             printer = testPrinter;
-            connectedPath = path;
+            connectedName = printerName;
             break;
           }
         } catch (err) {
-          // Try next path
+          console.log(`Failed to connect to ${printerName}:`, err);
+          // Try next printer name
           continue;
         }
       }
@@ -253,11 +250,13 @@ function setupIPCHandlers() {
         return {
           success: false,
           error:
-            "Printer not found. Please check:\n1. USB cable is connected\n2. Printer is powered on\n3. Printer drivers are installed",
+            "Printer not found. Tried: " +
+            possiblePrinterNames.join(", ") +
+            "\n\nPlease check:\n1. Printer is powered on\n2. USB cable is connected\n3. Printer shows as 'Ready' in Windows",
         };
       }
 
-      console.log(`Connected to printer at: ${connectedPath}`);
+      console.log(`Connected to printer: ${connectedName}`);
 
       // Print header
       printer.alignCenter();
