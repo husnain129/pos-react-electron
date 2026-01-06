@@ -72,7 +72,7 @@
   padding: 10mm;
   font-family: "Courier New", monospace;
   background: white;
-  min-height: auto;
+  color: black;
 }
 
 .receipt-content {
@@ -86,48 +86,47 @@
     margin: 0;
   }
 
-  html,
-  body {
-    height: auto;
-    overflow: visible;
+  * {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
-    margin: 0;
-    padding: 0;
   }
 
-  .thermal-receipt {
+  html,
+  body {
     width: 80mm;
-    height: auto !important;
-    min-height: auto !important;
-    max-height: none !important;
-    margin: 0;
-    padding: 5mm;
+    height: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: white;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body .thermal-receipt {
     display: block !important;
     visibility: visible !important;
-    overflow: visible !important;
+    position: relative !important;
+    width: 80mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 5mm !important;
+    background: white !important;
+    color: black !important;
     page-break-inside: avoid;
   }
 
-  .receipt-content {
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  /* Hide everything except the receipt */
-  body * {
-    visibility: hidden;
-  }
-
-  .thermal-receipt,
   .thermal-receipt * {
     visibility: visible !important;
+    color: black !important;
   }
 
-  .thermal-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
+  .receipt-content {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
   }
 
   .print\:hidden {
