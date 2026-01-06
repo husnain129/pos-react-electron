@@ -232,7 +232,25 @@ function setupIPCHandlers() {
     try {
       return new Promise((resolve) => {
         try {
-          const device = new escpos.USB();
+          // Find USB device - try to get the first available USB printer
+          const devices = escpos.USB.findPrinter();
+
+          if (!devices || devices.length === 0) {
+            resolve({
+              success: false,
+              error:
+                "No USB thermal printer found. Make sure POS-80 is connected via USB and powered on.",
+            });
+            return;
+          }
+
+          console.log(`Found ${devices.length} USB printer(s)`);
+
+          // Use the first device found
+          const device = new escpos.USB(
+            devices[0].deviceDescriptor.idVendor,
+            devices[0].deviceDescriptor.idProduct
+          );
           const printer = new escpos.Printer(device, { encoding: "CP437" });
 
           device.open((error: any) => {
@@ -240,7 +258,9 @@ function setupIPCHandlers() {
               console.error("Error opening printer device:", error);
               resolve({
                 success: false,
-                error: `Failed to open printer: ${error.message || String(error)}. Make sure POS-80 is connected via USB.`,
+                error: `Failed to open printer: ${
+                  error.message || String(error)
+                }. Make sure POS-80 is not being used by another program.`,
               });
               return;
             }
@@ -302,9 +322,9 @@ function setupIPCHandlers() {
 
               if (receiptData.discountAmount > 0) {
                 printer.text(
-                  `Discount:    -Rs ${Number(receiptData.discountAmount).toFixed(
-                    2
-                  )}`
+                  `Discount:    -Rs ${Number(
+                    receiptData.discountAmount
+                  ).toFixed(2)}`
                 );
               }
 
@@ -316,7 +336,9 @@ function setupIPCHandlers() {
                 )
                 .style("normal")
                 .size(0, 0)
-                .text(`Paid:         Rs ${Number(receiptData.paid).toFixed(2)}`);
+                .text(
+                  `Paid:         Rs ${Number(receiptData.paid).toFixed(2)}`
+                );
 
               if (receiptData.change > 0) {
                 printer
@@ -360,7 +382,9 @@ function setupIPCHandlers() {
           console.error("Error creating printer device:", deviceError);
           resolve({
             success: false,
-            error: `Device error: ${String(deviceError)}. Make sure POS-80 is connected and drivers are installed.`,
+            error: `Device error: ${String(
+              deviceError
+            )}. Make sure POS-80 is connected and drivers are installed.`,
           });
         }
       });
