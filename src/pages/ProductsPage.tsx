@@ -65,6 +65,7 @@ const ProductsPage: React.FC = () => {
     category: "",
     institute_id: "",
     stock: "off",
+    barcode: "",
   });
 
   const loading = productsLoading || categoriesLoading || institutesLoading;
@@ -98,6 +99,7 @@ const ProductsPage: React.FC = () => {
       category: product.category.toString(),
       institute_id: product.institute_id?.toString() || "",
       stock: product.stock === 0 ? "on" : "off",
+      barcode: product.barcode || "",
     });
     setIsDialogOpen(true);
   };
@@ -153,7 +155,9 @@ const ProductsPage: React.FC = () => {
 
     const csvContent = [
       headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+      ...rows.map((row: (string | number)[]) =>
+        row.map((cell: string | number) => `"${cell}"`).join(",")
+      ),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -181,6 +185,7 @@ const ProductsPage: React.FC = () => {
       category: "",
       institute_id: "",
       stock: "off",
+      barcode: "",
     });
   };
 

@@ -372,9 +372,20 @@ function setupIPCHandlers() {
         </html>
       `;
 
+      // Set up the load event listener BEFORE loading the URL
+      const loadPromise = new Promise((resolve) => {
+        printWindow.webContents.once("did-finish-load", () => {
+          // Give a small delay to ensure rendering is complete
+          setTimeout(resolve, 500);
+        });
+      });
+
       await printWindow.loadURL(
         `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
       );
+
+      // Wait for the page to fully load and render
+      await loadPromise;
 
       // Get available printers
       const printers = await printWindow.webContents.getPrintersAsync();
@@ -397,14 +408,13 @@ function setupIPCHandlers() {
         printWindow.webContents.print(
           {
             silent: true,
-            printBackground: false,
+            printBackground: true,
             deviceName: printerName,
             margins: {
               marginType: "none",
             },
             pageSize: {
               width: 80000, // 80mm in microns
-              height: 100000, // auto height in microns
             },
           },
           (success, errorType) => {
