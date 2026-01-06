@@ -171,20 +171,18 @@ const POSPage: React.FC = () => {
       setPaidAmount(0);
       setPaymentMethod("Cash");
 
-      // Set invoice data and trigger print
+      // Set invoice data - DON'T auto-print yet, let's verify content first
       setInvoiceData(invoiceData);
       setShowInvoice(true);
 
-      // Print after a delay to ensure DOM is fully rendered
-      setTimeout(() => {
-        window.print();
-
-        // Close invoice after printing
-        setTimeout(() => {
-          setShowInvoice(false);
-          setInvoiceData(null);
-        }, 1000);
-      }, 1000);
+      // DON'T auto close - keep it open so we can manually verify and print
+      // setTimeout(() => {
+      //   window.print();
+      //   setTimeout(() => {
+      //     setShowInvoice(false);
+      //     setInvoiceData(null);
+      //   }, 1000);
+      // }, 1000);
     } catch (error) {
       console.error("Error completing sale:", error);
       Swal.fire("Error", "Failed to complete sale", "error");
@@ -306,6 +304,26 @@ const POSPage: React.FC = () => {
               <img src={qrCode} alt="QR Code" className="w-20 h-20 mx-auto" />
             </div>
             <p className="text-xs mt-2">TEVTA - Creative Hands</p>
+          </div>
+
+          {/* Print and Close Buttons - Hidden when printing */}
+          <div className="flex gap-4 mt-6 print:hidden">
+            <Button
+              onClick={() => window.print()}
+              className="flex-1 bg-[#17411c] hover:bg-[#1a4f22]"
+            >
+              Print Receipt
+            </Button>
+            <Button
+              onClick={() => {
+                setShowInvoice(false);
+                setInvoiceData(null);
+              }}
+              variant="outline"
+              className="flex-1"
+            >
+              Close
+            </Button>
           </div>
         </div>
       </div>
