@@ -6,6 +6,7 @@ import { dbOperations } from "./database";
 
 const require = createRequire(import.meta.url);
 const escpos = require("escpos");
+const USB = require("usb");
 escpos.USB = require("escpos-usb");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -232,10 +233,26 @@ function setupIPCHandlers() {
     try {
       return new Promise((resolve) => {
         try {
-          // Find USB device - try to get the first available USB printer
-          const devices = escpos.USB.findPrinter();
+          // Find USB devices using the usb library directly
+          const usbDevices = USB.getDeviceList();
+          console.log(`Found ${usbDevices.length} USB devices`);
 
-          if (!devices || devices.length === 0) {
+          // Find printer devices (common printer class: 7)
+          const printerDevices = usbDevices.filter((device: any) => {
+            try {
+              device.open();
+              const interfaces = device.interfaces || [];
+              device.close();
+              return interfaces.some(
+                (iface: any) =>
+                  iface.descriptor && iface.descriptor.bInterfaceClass === 7
+              );
+            } catch (e) {
+              return false;
+            }
+          });
+
+          if (printerDevices.length === 0) {
             resolve({
               success: false,
               error:
@@ -244,13 +261,19 @@ function setupIPCHandlers() {
             return;
           }
 
-          console.log(`Found ${devices.length} USB printer(s)`);
+          console.log(`Found ${printerDevices.length} USB printer(s)`);
 
-          // Use the first device found
-          const device = new escpos.USB(
-            devices[0].deviceDescriptor.idVendor,
-            devices[0].deviceDescriptor.idProduct
+          // Get the first printer
+          const printerDevice = printerDevices[0];
+          const vendorId = printerDevice.deviceDescriptor.idVendor;
+          const productId = printerDevice.deviceDescriptor.idProduct;
+
+          console.log(
+            `Using printer with VendorID: ${vendorId}, ProductID: ${productId}`
           );
+
+          // Create device and printer
+          const device = new escpos.USB(vendorId, productId);
           const printer = new escpos.Printer(device, { encoding: "CP437" });
 
           device.open((error: any) => {

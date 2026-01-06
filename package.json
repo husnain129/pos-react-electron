@@ -53,6 +53,7 @@
     "sweetalert2": "^11.26.17",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "usb": "^2.16.0",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
