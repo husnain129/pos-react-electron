@@ -95,6 +95,29 @@ const POSPage: React.FC = () => {
     }
   };
 
+  // Check available printers
+  const checkPrinters = async () => {
+    if (window.ipcRenderer) {
+      const result = await window.ipcRenderer.invoke("print:listPrinters");
+      if (result.success) {
+        const printerList = result.printers
+          .map((p: any) => `${p.name}${p.isDefault ? " (Default)" : ""}`)
+          .join("\n");
+        Swal.fire({
+          title: "Available Printers",
+          html: `<pre style="text-align: left; font-size: 12px;">${
+            printerList || "No printers found"
+          }</pre>`,
+          icon: "info",
+        });
+      } else {
+        Swal.fire("Error", "Failed to list printers", "error");
+      }
+    } else {
+      Swal.fire("Info", "Printer detection only works in Electron app", "info");
+    }
+  };
+
   const handleCheckout = async () => {
     if (items.length === 0) {
       Swal.fire("Empty Cart", "Please add items to cart", "warning");
@@ -698,6 +721,13 @@ const POSPage: React.FC = () => {
                   disabled={items.length === 0 || isProcessing}
                 >
                   Clear Cart
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={checkPrinters}
+                >
+                  Check Printers
                 </Button>
               </div>
             </CardContent>

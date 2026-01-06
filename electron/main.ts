@@ -208,6 +208,28 @@ function setupIPCHandlers() {
     return await dbOperations.settings.update(settingsData);
   });
 
+  // Get list of available printers
+  ipcMain.handle("print:listPrinters", async () => {
+    try {
+      if (!win) return { success: false, printers: [] };
+      const printers = await win.webContents.getPrinters();
+      console.log("Available printers:", printers);
+      return {
+        success: true,
+        printers: printers.map((p) => ({
+          name: p.name,
+          displayName: p.displayName,
+          description: p.description,
+          status: p.status,
+          isDefault: p.isDefault,
+        })),
+      };
+    } catch (error) {
+      console.error("Error listing printers:", error);
+      return { success: false, printers: [], error: String(error) };
+    }
+  });
+
   // Thermal printer
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
     try {
