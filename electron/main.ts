@@ -1,9 +1,4 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-import {
-  CharacterSet,
-  PrinterTypes,
-  ThermalPrinter,
-} from "node-thermal-printer";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -230,150 +225,201 @@ function setupIPCHandlers() {
     }
   });
 
-  // Thermal printer
+  // Thermal printer - Direct print using Electron's built-in print
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
     try {
-      // Windows printer names to try
-      const possiblePrinterNames = [
-        "POS-80",
-        "POS-80 11.3.0.1",
-        "\\\\localhost\\POS-80",
-      ];
+      if (!win) {
+        return { success: false, error: "No window available" };
+      }
 
-      let printer: ThermalPrinter | null = null;
-      let connectedName = "";
+      // Create a hidden window for printing
+      const printWindow = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      });
 
-      // Try to connect using different printer names
-      for (const printerName of possiblePrinterNames) {
-        try {
-          const testPrinter = new ThermalPrinter({
-            type: PrinterTypes.EPSON,
-            interface: `printer:${printerName}`,
-            width: 48,
-            characterSet: CharacterSet.PC437_USA,
-            removeSpecialCharacters: false,
-            lineCharacter: "-",
-          });
+      // Build the HTML receipt
+      const receiptHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              width: 80mm;
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              padding: 5mm;
+              background: white;
+              color: black;
+            }
+            .center { text-align: center; }
+            .left { text-align: left; }
+            .bold { font-weight: bold; }
+            .large { font-size: 16px; }
+            .line { border-top: 1px dashed #000; margin: 5px 0; }
+            .item-row { display: flex; justify-content: space-between; margin: 2px 0; }
+            .spacing { margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <div class="large bold">Creative Hands</div>
+            <div>By TEVTA</div>
+            <div>Point of Sale System</div>
+            <div class="spacing"></div>
+            <div class="bold">SALES RECEIPT</div>
+            <div>Invoice: ${receiptData.invoiceNo}</div>
+            <div>${receiptData.date}</div>
+          </div>
+          
+          <div class="line"></div>
+          
+          <div class="left">
+            <div>Customer: ${receiptData.customer_name}</div>
+            <div>Payment: ${receiptData.payment_method}</div>
+          </div>
+          
+          <div class="spacing"></div>
+          <div class="line"></div>
+          
+          <div class="left">
+            ${receiptData.items
+              .map(
+                (item: any) => `
+              <div class="item-row">
+                <span>${item.name.substring(0, 20)}</span>
+                <span>${item.quantity} x Rs ${Number(item.price).toFixed(
+                  2
+                )}</span>
+                <span>Rs ${Number(item.total).toFixed(2)}</span>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+          
+          <div class="line"></div>
+          
+          <div class="left">
+            <div class="item-row">
+              <span>Subtotal:</span>
+              <span>Rs ${Number(receiptData.subtotal).toFixed(2)}</span>
+            </div>
+            ${
+              receiptData.taxPercentage > 0
+                ? `
+            <div class="item-row">
+              <span>Tax (${receiptData.taxPercentage}%):</span>
+              <span>Rs ${Number(receiptData.tax).toFixed(2)}</span>
+            </div>
+            `
+                : ""
+            }
+            ${
+              receiptData.discountAmount > 0
+                ? `
+            <div class="item-row">
+              <span>Discount:</span>
+              <span>-Rs ${Number(receiptData.discountAmount).toFixed(2)}</span>
+            </div>
+            `
+                : ""
+            }
+            <div class="line"></div>
+            <div class="item-row bold large">
+              <span>TOTAL:</span>
+              <span>Rs ${Number(receiptData.total).toFixed(2)}</span>
+            </div>
+            <div class="item-row">
+              <span>Paid:</span>
+              <span>Rs ${Number(receiptData.paid).toFixed(2)}</span>
+            </div>
+            ${
+              receiptData.change > 0
+                ? `
+            <div class="item-row bold">
+              <span>Change:</span>
+              <span>Rs ${Number(receiptData.change).toFixed(2)}</span>
+            </div>
+            `
+                : ""
+            }
+          </div>
+          
+          <div class="line"></div>
+          <div class="spacing"></div>
+          
+          <div class="center">
+            <div>Thank you for your business!</div>
+            <div>Served by: ${receiptData.user}</div>
+            <div class="spacing"></div>
+            <div>TEVTA - Creative Hands</div>
+          </div>
+        </body>
+        </html>
+      `;
 
-          const isConnected = await testPrinter.isPrinterConnected();
-          if (isConnected) {
-            printer = testPrinter;
-            connectedName = printerName;
-            break;
+      await printWindow.loadURL(
+        `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
+      );
+
+      // Get available printers
+      const printers = await printWindow.webContents.getPrintersAsync();
+      console.log("Available printers:", printers);
+
+      // Try to find POS-80 printer
+      const posPrinter = printers.find(
+        (p) =>
+          p.name.includes("POS-80") ||
+          p.name.includes("POS") ||
+          p.displayName.includes("POS-80")
+      );
+
+      const printerName =
+        posPrinter?.name || printers.find((p) => p.isDefault)?.name || "";
+
+      console.log("Using printer:", printerName);
+
+      return new Promise((resolve) => {
+        printWindow.webContents.print(
+          {
+            silent: true,
+            printBackground: false,
+            deviceName: printerName,
+            margins: {
+              marginType: "none",
+            },
+            pageSize: {
+              width: 80000, // 80mm in microns
+              height: 100000, // auto height in microns
+            },
+          },
+          (success, errorType) => {
+            printWindow.close();
+            if (success) {
+              resolve({ success: true });
+            } else {
+              resolve({
+                success: false,
+                error: `Print failed: ${errorType}. Make sure POS-80 printer is connected and set as default.`,
+              });
+            }
           }
-        } catch (err) {
-          console.log(`Failed to connect to ${printerName}:`, err);
-          // Try next printer name
-          continue;
-        }
-      }
-
-      if (!printer) {
-        return {
-          success: false,
-          error:
-            "Printer not found. Tried: " +
-            possiblePrinterNames.join(", ") +
-            "\n\nPlease check:\n1. Printer is powered on\n2. USB cable is connected\n3. Printer shows as 'Ready' in Windows",
-        };
-      }
-
-      console.log(`Connected to printer: ${connectedName}`);
-
-      // Print header
-      printer.alignCenter();
-      printer.setTextSize(1, 1);
-      printer.println("Creative Hands");
-      printer.setTextNormal();
-      printer.println("By TEVTA");
-      printer.println("Point of Sale System");
-      printer.newLine();
-
-      printer.bold(true);
-      printer.println("SALES RECEIPT");
-      printer.bold(false);
-      printer.println(`Invoice: ${receiptData.invoiceNo}`);
-      printer.println(receiptData.date);
-      printer.drawLine();
-
-      // Customer info
-      printer.alignLeft();
-      printer.println(`Customer: ${receiptData.customer_name}`);
-      printer.println(`Payment: ${receiptData.payment_method}`);
-      printer.newLine();
-
-      // Items header
-      printer.println("Item                    Qty    Total");
-      printer.drawLine();
-
-      // Items
-      for (const item of receiptData.items) {
-        const name = item.name.substring(0, 20).padEnd(20);
-        const qty = String(item.quantity).padStart(3);
-        const total = `Rs ${Number(item.total).toFixed(2)}`.padStart(12);
-        printer.println(`${name} ${qty} ${total}`);
-        printer.println(`  Rs ${Number(item.price).toFixed(2)} each`);
-      }
-
-      printer.drawLine();
-
-      // Totals
-      printer.println(
-        `Subtotal:        Rs ${Number(receiptData.subtotal).toFixed(2)}`
-      );
-
-      if (receiptData.taxPercentage > 0) {
-        printer.println(
-          `Tax (${receiptData.taxPercentage}%):          Rs ${Number(
-            receiptData.tax
-          ).toFixed(2)}`
         );
-      }
-
-      if (receiptData.discountAmount > 0) {
-        printer.println(
-          `Discount:       -Rs ${Number(receiptData.discountAmount).toFixed(2)}`
-        );
-      }
-
-      printer.bold(true);
-      printer.setTextSize(1, 1);
-      printer.println(
-        `TOTAL:          Rs ${Number(receiptData.total).toFixed(2)}`
-      );
-      printer.setTextNormal();
-      printer.bold(false);
-
-      printer.println(
-        `Paid:            Rs ${Number(receiptData.paid).toFixed(2)}`
-      );
-
-      if (receiptData.change > 0) {
-        printer.bold(true);
-        printer.println(
-          `Change:          Rs ${Number(receiptData.change).toFixed(2)}`
-        );
-        printer.bold(false);
-      }
-
-      printer.drawLine();
-
-      // Footer
-      printer.alignCenter();
-      printer.newLine();
-      printer.println("Thank you for your business!");
-      printer.println(`Served by: ${receiptData.user}`);
-      printer.newLine();
-      printer.println("TEVTA - Creative Hands");
-      printer.newLine();
-      printer.newLine();
-      printer.newLine();
-
-      // Cut paper
-      printer.cut();
-
-      await printer.execute();
-      return { success: true };
+      });
     } catch (error) {
       console.error("Thermal print error:", error);
       return { success: false, error: String(error) };
