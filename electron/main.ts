@@ -235,6 +235,8 @@ function setupIPCHandlers() {
       // Create a hidden window for printing
       const printWindow = new BrowserWindow({
         show: false,
+        width: 800,
+        height: 600,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
@@ -372,20 +374,14 @@ function setupIPCHandlers() {
         </html>
       `;
 
-      // Set up the load event listener BEFORE loading the URL
-      const loadPromise = new Promise((resolve) => {
-        printWindow.webContents.once("did-finish-load", () => {
-          // Give a small delay to ensure rendering is complete
-          setTimeout(resolve, 500);
-        });
-      });
-
-      await printWindow.loadURL(
-        `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
+      // Load HTML content directly instead of using data URL
+      await printWindow.loadURL("about:blank");
+      await printWindow.webContents.executeJavaScript(
+        `document.write(${JSON.stringify(receiptHTML)}); document.close();`
       );
 
-      // Wait for the page to fully load and render
-      await loadPromise;
+      // Wait for rendering to complete
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Get available printers
       const printers = await printWindow.webContents.getPrintersAsync();
