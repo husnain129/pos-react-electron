@@ -160,11 +160,11 @@ const POSPage: React.FC = () => {
         invoiceNo: `INV-${Date.now()}`,
         user: user?.fullname || user?.username || "Staff",
       };
-      
+
       // Set invoice data and trigger print
       setInvoiceData(invoiceData);
       setShowInvoice(true);
-      
+
       // Print after a short delay to ensure DOM is updated
       setTimeout(() => {
         window.print();
@@ -211,24 +211,24 @@ const POSPage: React.FC = () => {
                 className="w-16 h-16 object-contain"
               />
             </div>
-            <h1 className="text-lg font-bold">
-              Creative Hands
-            </h1>
+            <h1 className="text-lg font-bold">Creative Hands</h1>
             <p className="text-xs">By TEVTA</p>
             <p className="text-xs">Point of Sale System</p>
             <div className="mt-2">
               <p className="text-sm font-semibold">SALES RECEIPT</p>
-              <p className="text-xs">
-                Invoice: {invoiceData.invoiceNo}
-              </p>
+              <p className="text-xs">Invoice: {invoiceData.invoiceNo}</p>
               <p className="text-xs">{invoiceData.date}</p>
             </div>
           </div>
 
           {/* Customer Info */}
           <div className="mb-3 text-xs">
-            <p><strong>Customer:</strong> {invoiceData.customer_name}</p>
-            <p><strong>Payment:</strong> {invoiceData.payment_method}</p>
+            <p>
+              <strong>Customer:</strong> {invoiceData.customer_name}
+            </p>
+            <p>
+              <strong>Payment:</strong> {invoiceData.payment_method}
+            </p>
           </div>
 
           {/* Items List */}
@@ -245,7 +245,9 @@ const POSPage: React.FC = () => {
                 <div className="flex justify-between text-xs">
                   <span className="flex-1 font-medium">{item.name}</span>
                   <span className="w-12 text-right">{item.quantity}</span>
-                  <span className="w-20 text-right">Rs {Number(item.total || 0).toFixed(2)}</span>
+                  <span className="w-20 text-right">
+                    Rs {Number(item.total || 0).toFixed(2)}
+                  </span>
                 </div>
                 <div className="text-xs text-gray-600 ml-0">
                   Rs {Number(item.price || 0).toFixed(2)} each
@@ -269,7 +271,9 @@ const POSPage: React.FC = () => {
             {invoiceData.discountAmount > 0 && (
               <div className="flex justify-between mb-1">
                 <span>Discount:</span>
-                <span>- Rs {Number(invoiceData.discountAmount || 0).toFixed(2)}</span>
+                <span>
+                  - Rs {Number(invoiceData.discountAmount || 0).toFixed(2)}
+                </span>
               </div>
             )}
             <div className="flex justify-between font-bold text-sm border-t-2 border-gray-400 pt-2 mt-2">
