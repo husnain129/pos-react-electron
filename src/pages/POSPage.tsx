@@ -171,18 +171,37 @@ const POSPage: React.FC = () => {
       setPaidAmount(0);
       setPaymentMethod("Cash");
 
-      // Set invoice data - DON'T auto-print yet, let's verify content first
-      setInvoiceData(invoiceData);
-      setShowInvoice(true);
-
-      // DON'T auto close - keep it open so we can manually verify and print
-      // setTimeout(() => {
-      //   window.print();
-      //   setTimeout(() => {
-      //     setShowInvoice(false);
-      //     setInvoiceData(null);
-      //   }, 1000);
-      // }, 1000);
+      // Auto-print immediately after completing sale
+      if (window.ipcRenderer) {
+        // Use thermal printer in Electron
+        const result = await window.ipcRenderer.invoke(
+          "print:thermal",
+          invoiceData
+        );
+        if (result.success) {
+          Swal.fire({
+            icon: "success",
+            title: "Success!",
+            text: "Sale completed and receipt printed",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+        } else {
+          Swal.fire({
+            icon: "warning",
+            title: "Print Failed",
+            text: result.error || "Sale completed but failed to print receipt",
+            timer: 3000,
+          });
+          // Show invoice for manual printing
+          setInvoiceData(invoiceData);
+          setShowInvoice(true);
+        }
+      } else {
+        // For web version, show invoice with manual print
+        setInvoiceData(invoiceData);
+        setShowInvoice(true);
+      }
     } catch (error) {
       console.error("Error completing sale:", error);
       Swal.fire("Error", "Failed to complete sale", "error");
