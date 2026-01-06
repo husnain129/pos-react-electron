@@ -85,51 +85,13 @@ const POSPage: React.FC = () => {
 
   // Handle barcode scan
   const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && barcodeInput.trim()) {
+    if (e.key === "Enter") {
       e.preventDefault();
-
-      // Search for product by barcode
-      const product = products.find(
-        (p: Product) => p.barcode && p.barcode === barcodeInput.trim()
-      );
-
-      if (product) {
-        if (product.quantity > 0) {
-          addItem(product);
-          Swal.fire({
-            icon: "success",
-            title: "Added to Cart",
-            text: `${product.name} added successfully!`,
-            timer: 1500,
-            showConfirmButton: false,
-            position: "top-end",
-            toast: true,
-          });
-        } else {
-          Swal.fire({
-            icon: "warning",
-            title: "Out of Stock",
-            text: `${product.name} is currently out of stock!`,
-            timer: 2000,
-            showConfirmButton: false,
-            position: "top-end",
-            toast: true,
-          });
-        }
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Not Found",
-          text: `No product found with barcode: ${barcodeInput}`,
-          timer: 2000,
-          showConfirmButton: false,
-          position: "top-end",
-          toast: true,
-        });
+      // The useEffect above already handles adding the product
+      // This just clears the input if needed
+      if (barcodeInput.trim()) {
+        setBarcodeInput("");
       }
-
-      // Clear barcode input
-      setBarcodeInput("");
     }
   };
 
