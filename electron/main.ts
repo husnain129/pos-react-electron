@@ -1,13 +1,8 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dbOperations } from "./database";
 
-const require = createRequire(import.meta.url);
-const escpos = require("escpos");
-const USB = require("usb");
-escpos.USB = require("escpos-usb");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.APP_ROOT = path.join(__dirname, "..");
@@ -228,209 +223,152 @@ function setupIPCHandlers() {
     }
   });
 
-  // Thermal printer - Direct ESC/POS printing via USB
+  // Thermal printer - Using Windows printer API
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
+    if (!win) {
+      return { success: false, error: "No window available" };
+    }
+
     try {
+      // Create receipt HTML optimized for thermal printing
+      const receiptHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 72mm;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.3;
+      color: #000;
+      background: #fff;
+      padding: 2mm;
+    }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .large { font-size: 14px; }
+    .line { border-top: 1px dashed #000; margin: 3px 0; }
+    .row { display: flex; justify-content: space-between; margin: 1px 0; }
+    .mb { margin-bottom: 3px; }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div class="large bold">Creative Hands</div>
+    <div>By TEVTA</div>
+    <div>Point of Sale System</div>
+    <div class="mb"></div>
+    <div class="bold">SALES RECEIPT</div>
+    <div>Invoice: ${receiptData.invoiceNo}</div>
+    <div>${receiptData.date}</div>
+  </div>
+  <div class="line"></div>
+  <div>Customer: ${receiptData.customer_name}</div>
+  <div>Payment: ${receiptData.payment_method}</div>
+  <div class="line"></div>
+  ${receiptData.items
+    .map(
+      (item: any) => `
+    <div class="row">
+      <span>${item.name.substring(0, 18)}</span>
+      <span>${item.quantity}x${Number(item.price).toFixed(2)}</span>
+    </div>
+    <div class="row">
+      <span></span>
+      <span>Rs ${Number(item.total).toFixed(2)}</span>
+    </div>
+  `
+    )
+    .join("")}
+  <div class="line"></div>
+  <div class="row"><span>Subtotal:</span><span>Rs ${Number(
+    receiptData.subtotal
+  ).toFixed(2)}</span></div>
+  ${
+    receiptData.taxPercentage > 0
+      ? `
+    <div class="row"><span>Tax (${
+      receiptData.taxPercentage
+    }%):</span><span>Rs ${Number(receiptData.tax).toFixed(2)}</span></div>
+  `
+      : ""
+  }
+  ${
+    receiptData.discountAmount > 0
+      ? `
+    <div class="row"><span>Discount:</span><span>-Rs ${Number(
+      receiptData.discountAmount
+    ).toFixed(2)}</span></div>
+  `
+      : ""
+  }
+  <div class="line"></div>
+  <div class="row bold large"><span>TOTAL:</span><span>Rs ${Number(
+    receiptData.total
+  ).toFixed(2)}</span></div>
+  <div class="row"><span>Paid:</span><span>Rs ${Number(
+    receiptData.paid
+  ).toFixed(2)}</span></div>
+  ${
+    receiptData.change > 0
+      ? `
+    <div class="row bold"><span>Change:</span><span>Rs ${Number(
+      receiptData.change
+    ).toFixed(2)}</span></div>
+  `
+      : ""
+  }
+  <div class="line"></div>
+  <div class="center mb">
+    <div>Thank you for your business!</div>
+    <div>Served by: ${receiptData.user}</div>
+    <div class="mb"></div>
+    <div>TEVTA - Creative Hands</div>
+  </div>
+</body>
+</html>`;
+
+      // Create hidden window for printing
+      const printWindow = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      });
+
+      await printWindow.loadURL(
+        `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
+      );
+
+      // Wait for content to load
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       return new Promise((resolve) => {
-        try {
-          // Find USB devices using the usb library directly
-          const usbDevices = USB.getDeviceList();
-          console.log(`Found ${usbDevices.length} USB devices`);
-
-          // Log all devices for debugging
-          usbDevices.forEach((device: any, index: number) => {
-            const desc = device.deviceDescriptor;
-            console.log(
-              `Device ${index}: VendorID=${desc.idVendor}, ProductID=${desc.idProduct}`
-            );
-          });
-
-          // Try to find printer - look for any device (remove strict class filtering)
-          // Most thermal printers will be among the USB devices
-          let printerDevice = null;
-
-          for (const device of usbDevices) {
-            try {
-              device.open();
-              const interfaces = device.interfaces || [];
-              const hasClass7 = interfaces.some(
-                (iface: any) =>
-                  iface.descriptor && iface.descriptor.bInterfaceClass === 7
-              );
-              device.close();
-
-              if (hasClass7) {
-                printerDevice = device;
-                console.log("Found printer with class 7");
-                break;
-              }
-            } catch (e) {
-              // Ignore and continue
-            }
-          }
-
-          // If no class 7 device found, try the first USB device
-          // (thermal printers sometimes don't report class correctly)
-          if (!printerDevice && usbDevices.length > 0) {
-            console.log("No class 7 device found, trying first USB device");
-            printerDevice = usbDevices[0];
-          }
-
-          if (!printerDevice) {
-            resolve({
-              success: false,
-              error:
-                "No USB devices found. Make sure POS-80 is connected via USB and powered on.",
-            });
-            return;
-          }
-
-          // Get the first printer
-          const vendorId = printerDevice.deviceDescriptor.idVendor;
-          const productId = printerDevice.deviceDescriptor.idProduct;
-
-          console.log(
-            `Using device with VendorID: ${vendorId}, ProductID: ${productId}`
-          );
-
-          // Create device and printer
-          const device = new escpos.USB(vendorId, productId);
-          const printer = new escpos.Printer(device, { encoding: "CP437" });
-
-          device.open((error: any) => {
-            if (error) {
-              console.error("Error opening printer device:", error);
+        printWindow.webContents.print(
+          {
+            silent: true,
+            printBackground: false,
+            deviceName: "POS-80",
+            color: false,
+            margins: { marginType: "none" },
+            pageSize: { width: 72000, height: 297000 },
+          },
+          (success, errorType) => {
+            printWindow.close();
+            if (success) {
+              resolve({ success: true });
+            } else {
               resolve({
                 success: false,
-                error: `Failed to open printer: ${
-                  error.message || String(error)
-                }. Make sure POS-80 is not being used by another program.`,
-              });
-              return;
-            }
-
-            try {
-              // Print header
-              printer
-                .font("a")
-                .align("ct")
-                .style("bu")
-                .size(1, 1)
-                .text("Creative Hands")
-                .style("normal")
-                .text("By TEVTA")
-                .text("Point of Sale System")
-                .text("")
-                .style("b")
-                .text("SALES RECEIPT")
-                .style("normal")
-                .text(`Invoice: ${receiptData.invoiceNo}`)
-                .text(receiptData.date)
-                .drawLine();
-
-              // Customer info
-              printer
-                .align("lt")
-                .text(`Customer: ${receiptData.customer_name}`)
-                .text(`Payment: ${receiptData.payment_method}`)
-                .text("");
-
-              // Items header
-              printer.text("Item                  Qty    Total").drawLine();
-
-              // Print items
-              for (const item of receiptData.items) {
-                const name = item.name.substring(0, 20).padEnd(20);
-                const qty = String(item.quantity).padStart(3);
-                const total = `Rs ${Number(item.total).toFixed(2)}`.padStart(
-                  10
-                );
-                printer.text(`${name} ${qty} ${total}`);
-                printer.text(`  Rs ${Number(item.price).toFixed(2)} each`);
-              }
-
-              printer.drawLine();
-
-              // Totals
-              printer.text(
-                `Subtotal:     Rs ${Number(receiptData.subtotal).toFixed(2)}`
-              );
-
-              if (receiptData.taxPercentage > 0) {
-                printer.text(
-                  `Tax (${receiptData.taxPercentage}%):       Rs ${Number(
-                    receiptData.tax
-                  ).toFixed(2)}`
-                );
-              }
-
-              if (receiptData.discountAmount > 0) {
-                printer.text(
-                  `Discount:    -Rs ${Number(
-                    receiptData.discountAmount
-                  ).toFixed(2)}`
-                );
-              }
-
-              printer
-                .style("b")
-                .size(1, 1)
-                .text(
-                  `TOTAL:        Rs ${Number(receiptData.total).toFixed(2)}`
-                )
-                .style("normal")
-                .size(0, 0)
-                .text(
-                  `Paid:         Rs ${Number(receiptData.paid).toFixed(2)}`
-                );
-
-              if (receiptData.change > 0) {
-                printer
-                  .style("b")
-                  .text(
-                    `Change:       Rs ${Number(receiptData.change).toFixed(2)}`
-                  )
-                  .style("normal");
-              }
-
-              printer.drawLine();
-
-              // Footer
-              printer
-                .align("ct")
-                .text("")
-                .text("Thank you for your business!")
-                .text(`Served by: ${receiptData.user}`)
-                .text("")
-                .text("TEVTA - Creative Hands")
-                .text("")
-                .text("")
-                .cut()
-                .close(() => {
-                  resolve({ success: true });
-                });
-            } catch (printError) {
-              console.error("Error during printing:", printError);
-              try {
-                printer.close();
-              } catch (e) {
-                // Ignore close errors
-              }
-              resolve({
-                success: false,
-                error: `Print error: ${String(printError)}`,
+                error: `Print failed: ${errorType}. Make sure POS-80 printer is set as default and ready.`,
               });
             }
-          });
-        } catch (deviceError) {
-          console.error("Error creating printer device:", deviceError);
-          resolve({
-            success: false,
-            error: `Device error: ${String(
-              deviceError
-            )}. Make sure POS-80 is connected and drivers are installed.`,
-          });
-        }
+          }
+        );
       });
     } catch (error) {
       console.error("Thermal print error:", error);
