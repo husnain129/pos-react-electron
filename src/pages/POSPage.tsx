@@ -143,8 +143,8 @@ const POSPage: React.FC = () => {
       // Calculate change for invoice (only for cash payments)
       const actualChange = paymentMethod === "Card" ? 0 : changeAmount;
 
-      // Show invoice
-      setInvoiceData({
+      // Prepare invoice data and print instantly
+      const invoiceData = {
         ...transactionData,
         subtotal,
         discountAmount: discountValue,
@@ -158,13 +158,27 @@ const POSPage: React.FC = () => {
         })),
         date: new Date().toLocaleString(),
         invoiceNo: `INV-${Date.now()}`,
-      });
+        user: user?.fullname || user?.username || "Staff",
+      };
+      
+      // Set invoice data and trigger print
+      setInvoiceData(invoiceData);
       setShowInvoice(true);
-      clearCart();
-      setTaxPercentage(0);
-      setDiscountAmount(0);
-      setPaidAmount(0);
-      setPaymentMethod("Cash");
+      
+      // Print after a short delay to ensure DOM is updated
+      setTimeout(() => {
+        window.print();
+        // Close invoice and clear cart after printing
+        setTimeout(() => {
+          setShowInvoice(false);
+          setInvoiceData(null);
+          clearCart();
+          setTaxPercentage(0);
+          setDiscountAmount(0);
+          setPaidAmount(0);
+          setPaymentMethod("Cash");
+        }, 100);
+      }, 100);
     } catch (error) {
       console.error("Error completing sale:", error);
       Swal.fire("Error", "Failed to complete sale", "error");
@@ -184,173 +198,106 @@ const POSPage: React.FC = () => {
     )
     .sort((a: Product, b: Product) => Number(a._id) - Number(b._id));
 
-  const handlePrintInvoice = () => {
-    window.print();
-  };
-
-  const handleCloseInvoice = () => {
-    setShowInvoice(false);
-    setInvoiceData(null);
-  };
-
   if (showInvoice && invoiceData) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <Card>
-          <CardContent className="p-8">
-            {/* Invoice Header */}
-            <div className="text-center mb-8 border-b pb-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center p-3 border-2 border-[#17411c]">
-                  <img
-                    src={logo}
-                    alt="Creative Hands Logo"
-                    className="w-full h-full object-contain"
-                  />
+      <div className="thermal-receipt">
+        <div className="receipt-content">
+          {/* Invoice Header */}
+          <div className="text-center mb-4 pb-3 border-b-2 border-dashed border-gray-400">
+            <div className="flex justify-center mb-2">
+              <img
+                src={logo}
+                alt="Creative Hands Logo"
+                className="w-16 h-16 object-contain"
+              />
+            </div>
+            <h1 className="text-lg font-bold">
+              Creative Hands
+            </h1>
+            <p className="text-xs">By TEVTA</p>
+            <p className="text-xs">Point of Sale System</p>
+            <div className="mt-2">
+              <p className="text-sm font-semibold">SALES RECEIPT</p>
+              <p className="text-xs">
+                Invoice: {invoiceData.invoiceNo}
+              </p>
+              <p className="text-xs">{invoiceData.date}</p>
+            </div>
+          </div>
+
+          {/* Customer Info */}
+          <div className="mb-3 text-xs">
+            <p><strong>Customer:</strong> {invoiceData.customer_name}</p>
+            <p><strong>Payment:</strong> {invoiceData.payment_method}</p>
+          </div>
+
+          {/* Items List */}
+          <div className="mb-3 border-b-2 border-dashed border-gray-400 pb-2">
+            <div className="text-xs font-semibold border-b border-gray-300 pb-1 mb-2">
+              <div className="flex justify-between">
+                <span className="flex-1">Item</span>
+                <span className="w-12 text-right">Qty</span>
+                <span className="w-20 text-right">Total</span>
+              </div>
+            </div>
+            {invoiceData.items.map((item: any, index: number) => (
+              <div key={index} className="mb-2">
+                <div className="flex justify-between text-xs">
+                  <span className="flex-1 font-medium">{item.name}</span>
+                  <span className="w-12 text-right">{item.quantity}</span>
+                  <span className="w-20 text-right">Rs {Number(item.total || 0).toFixed(2)}</span>
+                </div>
+                <div className="text-xs text-gray-600 ml-0">
+                  Rs {Number(item.price || 0).toFixed(2)} each
                 </div>
               </div>
-              <h1 className="text-3xl font-bold text-[#17411c] mb-2">
-                Creative Hands
-              </h1>
-              <p className="text-sm text-gray-600">By TEVTA</p>
-              <p className="text-sm text-gray-600">Point of Sale System</p>
-              <div className="mt-4">
-                <h2 className="text-xl font-semibold">SALES INVOICE</h2>
-                <p className="text-sm text-gray-600">
-                  Invoice No: {invoiceData.invoiceNo}
-                </p>
-                <p className="text-sm text-gray-600">{invoiceData.date}</p>
+            ))}
+          </div>
+
+          {/* Totals */}
+          <div className="mb-3 text-xs">
+            <div className="flex justify-between mb-1">
+              <span>Subtotal:</span>
+              <span>Rs {Number(invoiceData.subtotal || 0).toFixed(2)}</span>
+            </div>
+            {invoiceData.taxPercentage > 0 && (
+              <div className="flex justify-between mb-1">
+                <span>Tax ({invoiceData.taxPercentage}%):</span>
+                <span>Rs {Number(invoiceData.tax || 0).toFixed(2)}</span>
               </div>
-            </div>
-
-            {/* Customer Info */}
-            <div className="mb-6">
-              <p className="text-sm">
-                <strong>Customer:</strong> {invoiceData.customer_name}
-              </p>
-              <p className="text-sm">
-                <strong>Payment Method:</strong> {invoiceData.payment_method}
-              </p>
-              <p className="text-sm">
-                <strong>Payment Status:</strong> {invoiceData.payment_status}
-              </p>
-            </div>
-
-            {/* Items Table */}
-            <div className="mb-6">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-300">
-                    <th className="text-left py-2 px-2">#</th>
-                    <th className="text-left py-2 px-2">Item</th>
-                    <th className="text-right py-2 px-2">Price</th>
-                    <th className="text-right py-2 px-2">Qty</th>
-                    <th className="text-right py-2 px-2">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoiceData.items.map((item: any, index: number) => (
-                    <tr key={index} className="border-b border-gray-200">
-                      <td className="py-2 px-2">{index + 1}</td>
-                      <td className="py-2 px-2">{item.name}</td>
-                      <td className="text-right py-2 px-2">
-                        Rs {Number(item.price || 0).toFixed(2)}
-                      </td>
-                      <td className="text-right py-2 px-2">{item.quantity}</td>
-                      <td className="text-right py-2 px-2">
-                        Rs {Number(item.total || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals */}
-            <div className="border-t-2 border-gray-300 pt-4 mb-6">
-              <div className="flex justify-end mb-2">
-                <div className="w-64">
-                  <div className="flex justify-between mb-1">
-                    <span>Subtotal:</span>
-                    <span>
-                      Rs {Number(invoiceData.subtotal || 0).toFixed(2)}
-                    </span>
-                  </div>
-                  {invoiceData.taxPercentage > 0 && (
-                    <div className="flex justify-between mb-1">
-                      <span>Tax ({invoiceData.taxPercentage}%):</span>
-                      <span>Rs {Number(invoiceData.tax || 0).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {invoiceData.discountAmount > 0 && (
-                    <div className="flex justify-between mb-1 text-red-600">
-                      <span>Discount:</span>
-                      <span>
-                        - Rs{" "}
-                        {Number(invoiceData.discountAmount || 0).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-lg border-t pt-2">
-                    <span>Total:</span>
-                    <span className="text-green-600">
-                      Rs {Number(invoiceData.total || 0).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span>Paid:</span>
-                    <span>Rs {Number(invoiceData.paid || 0).toFixed(2)}</span>
-                  </div>
-                  {invoiceData.change > 0 && (
-                    <div className="flex justify-between mt-1 font-semibold text-green-700">
-                      <span>Change:</span>
-                      <span>
-                        Rs {Number(invoiceData.change || 0).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            )}
+            {invoiceData.discountAmount > 0 && (
+              <div className="flex justify-between mb-1">
+                <span>Discount:</span>
+                <span>- Rs {Number(invoiceData.discountAmount || 0).toFixed(2)}</span>
               </div>
+            )}
+            <div className="flex justify-between font-bold text-sm border-t-2 border-gray-400 pt-2 mt-2">
+              <span>TOTAL:</span>
+              <span>Rs {Number(invoiceData.total || 0).toFixed(2)}</span>
             </div>
-
-            {/* Customer Instructions */}
-            <div className="mb-6 p-3 bg-gray-50 rounded border">
-              <p className="text-sm font-medium mb-1">Customer Instructions:</p>
-              <p className="text-sm text-gray-700">
-                Thank you for shopping with Creative Hands. For any queries or
-                support, please contact our TEVTA office.
-              </p>
+            <div className="flex justify-between mt-1">
+              <span>Paid:</span>
+              <span>Rs {Number(invoiceData.paid || 0).toFixed(2)}</span>
             </div>
-
-            {/* Footer */}
-            <div className="text-center text-sm text-gray-600 border-t pt-4">
-              <p>Thank you for your business!</p>
-              <p className="mt-2">
-                Served by: {user?.fullname || user?.username}
-              </p>
-              <div className="mt-4">
-                <img src={qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
+            {invoiceData.change > 0 && (
+              <div className="flex justify-between mt-1 font-semibold">
+                <span>Change:</span>
+                <span>Rs {Number(invoiceData.change || 0).toFixed(2)}</span>
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Action Buttons - Hidden on print */}
-            <div className="flex gap-4 mt-8 print:hidden">
-              <Button
-                onClick={handlePrintInvoice}
-                className="flex-1 bg-[#17411c] hover:bg-[#1a4f22]"
-              >
-                Print Invoice
-              </Button>
-              <Button
-                onClick={handleCloseInvoice}
-                variant="outline"
-                className="flex-1"
-              >
-                Close
-              </Button>
+          {/* Footer */}
+          <div className="text-center text-xs border-t-2 border-dashed border-gray-400 pt-3 mt-3">
+            <p className="font-medium">Thank you for your business!</p>
+            <p className="mt-1">Served by: {invoiceData.user}</p>
+            <div className="mt-3 mb-2">
+              <img src={qrCode} alt="QR Code" className="w-20 h-20 mx-auto" />
             </div>
-          </CardContent>
-        </Card>
+            <p className="text-xs mt-2">TEVTA - Creative Hands</p>
+          </div>
+        </div>
       </div>
     );
   }
