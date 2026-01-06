@@ -230,29 +230,33 @@ function setupIPCHandlers() {
     }
 
     try {
-      // Create receipt HTML optimized for thermal printing
+      // Create receipt HTML optimized for thermal printing (80mm standard)
       const receiptHTML = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <style>
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      width: 72mm;
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      line-height: 1.3;
+      width: 80mm;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
       color: #000;
       background: #fff;
-      padding: 2mm;
+      padding: 3mm;
     }
     .center { text-align: center; }
     .bold { font-weight: bold; }
-    .large { font-size: 14px; }
-    .line { border-top: 1px dashed #000; margin: 3px 0; }
-    .row { display: flex; justify-content: space-between; margin: 1px 0; }
-    .mb { margin-bottom: 3px; }
+    .large { font-size: 16px; }
+    .line { border-top: 1px dashed #000; margin: 4px 0; }
+    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+    .mb { margin-bottom: 5px; }
   </style>
 </head>
 <body>
@@ -273,12 +277,12 @@ function setupIPCHandlers() {
     .map(
       (item: any) => `
     <div class="row">
-      <span>${item.name.substring(0, 18)}</span>
-      <span>${item.quantity}x${Number(item.price).toFixed(2)}</span>
+      <span>${item.name.substring(0, 20)}</span>
+      <span>${item.quantity} x Rs${Number(item.price).toFixed(2)}</span>
     </div>
     <div class="row">
       <span></span>
-      <span>Rs ${Number(item.total).toFixed(2)}</span>
+      <span class="bold">Rs ${Number(item.total).toFixed(2)}</span>
     </div>
   `
     )
@@ -351,11 +355,9 @@ function setupIPCHandlers() {
         printWindow.webContents.print(
           {
             silent: true,
-            printBackground: false,
+            printBackground: true,
             deviceName: "POS-80",
-            color: false,
             margins: { marginType: "none" },
-            pageSize: { width: 72000, height: 297000 },
           },
           (success, errorType) => {
             printWindow.close();
