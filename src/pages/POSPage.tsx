@@ -309,7 +309,35 @@ const POSPage: React.FC = () => {
           {/* Print and Close Buttons - Hidden when printing */}
           <div className="flex gap-4 mt-6 print:hidden">
             <Button
-              onClick={() => window.print()}
+              onClick={async () => {
+                if (window.ipcRenderer) {
+                  // Use thermal printer in Electron
+                  const result = await window.ipcRenderer.invoke(
+                    "print:thermal",
+                    invoiceData
+                  );
+                  if (result.success) {
+                    Swal.fire({
+                      icon: "success",
+                      title: "Printed!",
+                      text: "Receipt printed successfully",
+                      timer: 1500,
+                      showConfirmButton: false,
+                    });
+                    setShowInvoice(false);
+                    setInvoiceData(null);
+                  } else {
+                    Swal.fire({
+                      icon: "error",
+                      title: "Print Failed",
+                      text: result.error || "Failed to print receipt",
+                    });
+                  }
+                } else {
+                  // Fallback to browser print
+                  window.print();
+                }
+              }}
               className="flex-1 bg-[#17411c] hover:bg-[#1a4f22]"
             >
               Print Receipt

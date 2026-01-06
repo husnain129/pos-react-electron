@@ -1,4 +1,9 @@
 import { app, BrowserWindow, ipcMain } from "electron";
+import {
+  CharacterSet,
+  PrinterTypes,
+  ThermalPrinter,
+} from "node-thermal-printer";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -203,7 +208,158 @@ function setupIPCHandlers() {
     return await dbOperations.settings.update(settingsData);
   });
 
-  // Silent printing for thermal receipts
+  // Thermal printer
+  ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
+    try {
+      // Try different interface paths for macOS
+      const possiblePaths = [
+        "/dev/usb/lp0",
+        "/dev/usb/lp1",
+        "tcp://192.168.1.100", // If using network printer
+        "\\\\localhost\\POS-80", // Windows-style path that might work
+      ];
+
+      let printer: ThermalPrinter | null = null;
+      let connectedPath = "";
+
+      // Try to connect using different paths
+      for (const path of possiblePaths) {
+        try {
+          const testPrinter = new ThermalPrinter({
+            type: PrinterTypes.EPSON,
+            interface: path,
+            options: {
+              timeout: 2000,
+            },
+            width: 48,
+            characterSet: CharacterSet.PC437_USA,
+            removeSpecialCharacters: false,
+            lineCharacter: "-",
+          });
+
+          const isConnected = await testPrinter.isPrinterConnected();
+          if (isConnected) {
+            printer = testPrinter;
+            connectedPath = path;
+            break;
+          }
+        } catch (err) {
+          // Try next path
+          continue;
+        }
+      }
+
+      if (!printer) {
+        return {
+          success: false,
+          error:
+            "Printer not found. Please check:\n1. USB cable is connected\n2. Printer is powered on\n3. Printer drivers are installed",
+        };
+      }
+
+      console.log(`Connected to printer at: ${connectedPath}`);
+
+      // Print header
+      printer.alignCenter();
+      printer.setTextSize(1, 1);
+      printer.println("Creative Hands");
+      printer.setTextNormal();
+      printer.println("By TEVTA");
+      printer.println("Point of Sale System");
+      printer.newLine();
+
+      printer.bold(true);
+      printer.println("SALES RECEIPT");
+      printer.bold(false);
+      printer.println(`Invoice: ${receiptData.invoiceNo}`);
+      printer.println(receiptData.date);
+      printer.drawLine();
+
+      // Customer info
+      printer.alignLeft();
+      printer.println(`Customer: ${receiptData.customer_name}`);
+      printer.println(`Payment: ${receiptData.payment_method}`);
+      printer.newLine();
+
+      // Items header
+      printer.println("Item                    Qty    Total");
+      printer.drawLine();
+
+      // Items
+      for (const item of receiptData.items) {
+        const name = item.name.substring(0, 20).padEnd(20);
+        const qty = String(item.quantity).padStart(3);
+        const total = `Rs ${Number(item.total).toFixed(2)}`.padStart(12);
+        printer.println(`${name} ${qty} ${total}`);
+        printer.println(`  Rs ${Number(item.price).toFixed(2)} each`);
+      }
+
+      printer.drawLine();
+
+      // Totals
+      printer.println(
+        `Subtotal:        Rs ${Number(receiptData.subtotal).toFixed(2)}`
+      );
+
+      if (receiptData.taxPercentage > 0) {
+        printer.println(
+          `Tax (${receiptData.taxPercentage}%):          Rs ${Number(
+            receiptData.tax
+          ).toFixed(2)}`
+        );
+      }
+
+      if (receiptData.discountAmount > 0) {
+        printer.println(
+          `Discount:       -Rs ${Number(receiptData.discountAmount).toFixed(2)}`
+        );
+      }
+
+      printer.bold(true);
+      printer.setTextSize(1, 1);
+      printer.println(
+        `TOTAL:          Rs ${Number(receiptData.total).toFixed(2)}`
+      );
+      printer.setTextNormal();
+      printer.bold(false);
+
+      printer.println(
+        `Paid:            Rs ${Number(receiptData.paid).toFixed(2)}`
+      );
+
+      if (receiptData.change > 0) {
+        printer.bold(true);
+        printer.println(
+          `Change:          Rs ${Number(receiptData.change).toFixed(2)}`
+        );
+        printer.bold(false);
+      }
+
+      printer.drawLine();
+
+      // Footer
+      printer.alignCenter();
+      printer.newLine();
+      printer.println("Thank you for your business!");
+      printer.println(`Served by: ${receiptData.user}`);
+      printer.newLine();
+      printer.println("TEVTA - Creative Hands");
+      printer.newLine();
+      printer.newLine();
+      printer.newLine();
+
+      // Cut paper
+      printer.cut();
+
+      await printer.execute();
+      return { success: true };
+    } catch (error) {
+      console.error("Thermal print error:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // Silent printing for thermal receipts (fallback)
   ipcMain.handle("print:silent", async () => {
     if (!win) return { success: false, error: "No window available" };
 
