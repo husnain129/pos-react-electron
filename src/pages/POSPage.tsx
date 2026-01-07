@@ -18,7 +18,7 @@ import type { Product } from "../types";
 const POSPage: React.FC = () => {
   const { data: products = [], isLoading: loading } = useProducts();
   const createTransaction = useCreateTransaction();
-  const { printReceipt, testPrint, isPrinting, listPrinters } = usePrinter();
+  const { printReceipt } = usePrinter();
   const [searchTerm, setSearchTerm] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
@@ -29,6 +29,7 @@ const POSPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [barcodeInput, setBarcodeInput] = useState("");
   const barcodeInputRef = React.useRef<HTMLInputElement>(null);
+  const hasAutoPrintedRef = React.useRef(false);
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } =
     useCartStore();
   const { user } = useAuthStore();
@@ -85,6 +86,43 @@ const POSPage: React.FC = () => {
     }
   }, [barcodeInput, products, addItem]);
 
+  // Auto-print when invoice is shown (after completing sale)
+  React.useEffect(() => {
+    if (!showInvoice || !invoiceData) return;
+    if (hasAutoPrintedRef.current) return;
+
+    hasAutoPrintedRef.current = true;
+
+    (async () => {
+      try {
+        Swal.fire({
+          title: "Printing...",
+          text: "Sending receipt to printer",
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+
+        await printReceipt(invoiceData);
+
+        Swal.fire({
+          icon: "success",
+          title: "Printed!",
+          text: "Receipt sent to printer",
+          timer: 1200,
+          showConfirmButton: false,
+        });
+      } catch (error: any) {
+        Swal.fire({
+          icon: "error",
+          title: "Print Failed",
+          text: error?.message || "Failed to print receipt",
+        });
+      }
+    })();
+  }, [showInvoice, invoiceData, printReceipt]);
+
   // Handle barcode scan
   const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -94,29 +132,6 @@ const POSPage: React.FC = () => {
       if (barcodeInput.trim()) {
         setBarcodeInput("");
       }
-    }
-  };
-
-  // Check available printers
-  const checkPrinters = async () => {
-    try {
-      const result = await listPrinters();
-      if (result.success) {
-        const printerList = result.printers
-          .map((p: any) => `${p.name}${p.isDefault ? " (Default)" : ""}`)
-          .join("\n");
-        Swal.fire({
-          title: "Available Printers",
-          html: `<pre style="text-align: left; font-size: 12px;">${
-            printerList || "No printers found"
-          }</pre>`,
-          icon: "info",
-        });
-      } else {
-        Swal.fire("Error", "Failed to list printers", "error");
-      }
-    } catch (error) {
-      Swal.fire("Error", "Failed to list printers", "error");
     }
   };
 
@@ -206,6 +221,7 @@ const POSPage: React.FC = () => {
       });
 
       // Show invoice for viewing and printing
+      hasAutoPrintedRef.current = false;
       setInvoiceData(invoiceData);
       setShowInvoice(true);
     } catch (error) {
@@ -334,40 +350,11 @@ const POSPage: React.FC = () => {
           {/* Print and Close Buttons - Hidden when printing */}
           <div className="flex gap-4 mt-6 print:hidden">
             <Button
-              onClick={async () => {
-                try {
-                  const result = await printReceipt(invoiceData);
-                  if (result.success) {
-                    Swal.fire({
-                      icon: "success",
-                      title: "Printed!",
-                      text: "Receipt printed successfully",
-                      timer: 1500,
-                      showConfirmButton: false,
-                    });
-                    setShowInvoice(false);
-                    setInvoiceData(null);
-                  }
-                } catch (error: any) {
-                  Swal.fire({
-                    icon: "error",
-                    title: "Print Failed",
-                    text: error.message || "Failed to print receipt",
-                  });
-                }
-              }}
-              disabled={isPrinting}
-              className="flex-1 bg-[#17411c] hover:bg-[#1a4f22]"
-            >
-              {isPrinting ? "Printing..." : "Print Receipt"}
-            </Button>
-            <Button
               onClick={() => {
                 setShowInvoice(false);
                 setInvoiceData(null);
               }}
-              variant="outline"
-              className="flex-1"
+              className="flex-1 bg-[#17411c] hover:bg-[#1a4f22]"
             >
               Close
             </Button>
@@ -702,34 +689,10 @@ const POSPage: React.FC = () => {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={async () => {
-                    try {
-                      await testPrint();
-                      Swal.fire({
-                        icon: "success",
-                        title: "Success!",
-                        text: "Test print completed successfully",
-                        timer: 1500,
-                      });
-                    } catch (error: any) {
-                      Swal.fire({
-                        icon: "error",
-                        title: "Test Print Failed",
-                        text: error.message || "Failed to print test page",
-                      });
-                    }
-                  }}
-                  disabled={isPrinting}
-                >
-                  {isPrinting ? "Printing..." : "Test Print"}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={checkPrinters}
-                >
-                  Check Printers
-                </Button>
+                  disabled
+                  aria-hidden="true"
+                  style={{ display: "none" }}
+                />
               </div>
             </CardContent>
           </Card>
