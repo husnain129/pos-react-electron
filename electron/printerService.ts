@@ -19,24 +19,19 @@ interface PrintReceiptData {
   user: string;
 }
 
+// The legacy 'printer' native module has been intentionally disabled to avoid install failures
+// and native rebuild complexity on modern Node/Electron. Prefer HTML-based printing via
+// Electron or configure a network ESC/POS printer using `node-thermal-printer`.
 let printer: any = null;
 
-// Try to load printer module (only works on Windows after rebuild)
 async function loadPrinterModule() {
-  try {
-    // Use dynamic import for ESM compatibility
-    const { createRequire } = await import("module");
-    const require = createRequire(import.meta.url);
-    printer = require("printer");
-    console.log("Printer module loaded successfully");
-  } catch (error) {
-    console.log(
-      "Printer module not available, will use HTML printing fallback"
-    );
-  }
+  printer = null;
+  console.log(
+    "Raw 'printer' module is disabled. Using HTML printing fallback or network thermal printing if configured."
+  );
 }
 
-// Initialize printer module
+// Initialize printer module (no-op)
 loadPrinterModule();
 
 class PrinterService {

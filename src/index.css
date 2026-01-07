@@ -75,6 +75,13 @@
   color: black;
 }
 
+/* 58mm paper variant */
+.thermal-58 {
+  width: 58mm;
+  padding: 6mm;
+  font-size: 10px;
+}
+
 .receipt-content {
   width: 100%;
   color: black;
@@ -110,7 +117,9 @@
 
   /* Show only thermal receipt and its descendants */
   .thermal-receipt,
-  .thermal-receipt * {
+  .thermal-receipt *,
+  .thermal-58,
+  .thermal-58 * {
     visibility: visible !important;
   }
 
@@ -126,6 +135,16 @@
     background: white !important;
     color: black !important;
     page-break-inside: avoid;
+  }
+
+  /* 58mm page size override when using .thermal-58 */
+  .thermal-58 {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 58mm !important;
+    padding: 4mm !important;
+    font-size: 10px !important;
   }
 
   .receipt-content {

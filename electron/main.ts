@@ -25,187 +25,135 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
   }
 
   try {
-    // Simplified HTML that works better with thermal printers
-    const receiptHTML = `
-<!DOCTYPE html>
+    // Compose minimal, ESC/POS-friendly HTML for thermal printers
+    const receiptHTML = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    @page {
-      size: 80mm auto;
-      margin: 0mm;
-    }
-    @media print {
-      body { margin: 0; padding: 0; }
-    }
-    body {
-      width: 72mm;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      line-height: 1.3;
-      color: #000;
-      background: #fff;
-      margin: 0;
-      padding: 2mm;
-    }
-    .center { text-align: center; }
-    .left { text-align: left; }
-    .right { text-align: right; }
-    .bold { font-weight: bold; }
-    .large { font-size: 14px; }
-    .line { 
-      border-bottom: 1px dashed #000; 
-      margin: 3px 0; 
-      height: 1px;
-    }
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
-    }
-    td { padding: 1px 0; }
-    .item-name { width: 60%; }
-    .item-price { width: 40%; text-align: right; }
+    @page { size: 80mm auto; margin: 0; }
+    html,body { margin:0; padding:0; background:#fff; color:#000; }
+    body { width: 72mm; font-family: 'Courier New', monospace; font-size: 11px; line-height:1.25; padding:4mm; }
+    .center{ text-align:center }
+    .left{ text-align:left }
+    .right{ text-align:right }
+    .line{ border-bottom:1px dashed #000; margin:6px 0 }
+    table{ width:100%; border-collapse:collapse }
+    td{ padding:2px 0 }
+    img{ max-width:64px; height:auto; display:block; margin: 6px auto }
   </style>
 </head>
 <body>
   <div class="center">
-    <div class="large bold">Creative Hands</div>
+    <div style="font-weight:700; font-size:13px">Creative Hands</div>
     <div>By TEVTA</div>
     <div>Point of Sale System</div>
   </div>
   <div class="line"></div>
-  <div class="center bold">SALES RECEIPT</div>
+  <div class="center" style="font-weight:700">SALES RECEIPT</div>
   <div class="center">Invoice: ${receiptData.invoiceNo}</div>
   <div class="center">${receiptData.date}</div>
   <div class="line"></div>
-  <div class="left">
-    <div>Customer: ${receiptData.customer_name}</div>
-    <div>Payment: ${receiptData.payment_method}</div>
-  </div>
+  <div class="left">Customer: ${receiptData.customer_name}</div>
+  <div class="left">Payment: ${receiptData.payment_method}</div>
   <div class="line"></div>
   <table>
     ${receiptData.items
-      .map(
-        (item: any) => `
+      .map((item: any) => `
       <tr>
-        <td class="item-name">${item.name.substring(0, 20)}</td>
-        <td class="item-price">${item.quantity} x ${Number(item.price).toFixed(
-          2
-        )}</td>
+        <td style="width:60%">${item.name.substring(0, 20)}</td>
+        <td style="width:40%; text-align:right">${item.quantity} x ${Number(item.price).toFixed(2)}</td>
       </tr>
       <tr>
         <td></td>
-        <td class="item-price bold">Rs ${Number(item.total).toFixed(2)}</td>
+        <td style="text-align:right; font-weight:600">Rs ${Number(item.total).toFixed(2)}</td>
       </tr>
-    `
-      )
-      .join("")}
+    `)
+      .join('')}
   </table>
   <div class="line"></div>
   <table>
-    <tr>
-      <td>Subtotal:</td>
-      <td class="right">Rs ${Number(receiptData.subtotal).toFixed(2)}</td>
-    </tr>
-    ${
-      receiptData.taxPercentage > 0
-        ? `<tr>
-      <td>Tax (${receiptData.taxPercentage}%):</td>
-      <td class="right">Rs ${Number(receiptData.tax).toFixed(2)}</td>
-    </tr>`
-        : ""
-    }
-    ${
-      receiptData.discountAmount > 0
-        ? `<tr>
-      <td>Discount:</td>
-      <td class="right">-Rs ${Number(receiptData.discountAmount).toFixed(
-        2
-      )}</td>
-    </tr>`
-        : ""
-    }
+    <tr><td>Subtotal:</td><td class="right">Rs ${Number(receiptData.subtotal).toFixed(2)}</td></tr>
+    ${receiptData.taxPercentage > 0 ? `<tr><td>Tax (${receiptData.taxPercentage}%):</td><td class="right">Rs ${Number(receiptData.tax).toFixed(2)}</td></tr>` : ''}
+    ${receiptData.discountAmount > 0 ? `<tr><td>Discount:</td><td class="right">-Rs ${Number(receiptData.discountAmount).toFixed(2)}</td></tr>` : ''}
   </table>
   <div class="line"></div>
-  <table>
-    <tr class="bold large">
-      <td>TOTAL:</td>
-      <td class="right">Rs ${Number(receiptData.total).toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td>Paid:</td>
-      <td class="right">Rs ${Number(receiptData.paid).toFixed(2)}</td>
-    </tr>
-    ${
-      receiptData.change > 0
-        ? `<tr class="bold">
-      <td>Change:</td>
-      <td class="right">Rs ${Number(receiptData.change).toFixed(2)}</td>
-    </tr>`
-        : ""
-    }
-  </table>
+  <div style="font-weight:700; display:flex; justify-content:space-between"><div>TOTAL:</div><div>Rs ${Number(receiptData.total).toFixed(2)}</div></div>
+  <div style="display:flex; justify-content:space-between"><div>Paid:</div><div>Rs ${Number(receiptData.paid).toFixed(2)}</div></div>
+  ${receiptData.change > 0 ? `<div style="font-weight:700; display:flex; justify-content:space-between"><div>Change:</div><div>Rs ${Number(receiptData.change).toFixed(2)}</div></div>` : ''}
   <div class="line"></div>
-  <div class="center">
-    <div>Thank you for your business!</div>
-    <div>Served by: ${receiptData.user}</div>
-    <br>
-    <div>TEVTA - Creative Hands</div>
-  </div>
-  <br><br><br>
+  <div class="center">Thank you for your business!</div>
+  <div class="center">Served by: ${receiptData.user}</div>
+  <div style="height:36px"></div>
 </body>
 </html>`;
 
     const printWindow = new BrowserWindow({
-      show: false, // Change to true for debugging
+      show: false, // set true for debugging
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        backgroundThrottling: false,
       },
     });
 
-    await printWindow.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
-    );
+    // Load and wait for a finished load to ensure rendering complete
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`);
+    await new Promise((resolve) => printWindow.webContents.once('did-finish-load', resolve));
 
-    // Give more time to render
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Ensure there is printable text (guard against blank pages)
+    try {
+      const textLen = await printWindow.webContents.executeJavaScript('document.body.innerText.trim().length');
+      if (!textLen || textLen < 3) {
+        printWindow.close();
+        return { success: false, error: 'No printable content rendered (blank page).' };
+      }
+    } catch (err) {
+      // Fall through and attempt to print, but log
+      console.warn('Could not verify content length before printing', err);
+    }
 
-    return new Promise((resolve) => {
+    // Select deviceName if passed, otherwise pick default printer if available
+    let deviceName: string | undefined = receiptData?.deviceName || undefined;
+    try {
+      if (!deviceName) {
+        const printers = await printWindow.webContents.getPrintersAsync();
+        const defaultPrinter = printers.find((p: any) => p.isDefault) || printers[0];
+        deviceName = defaultPrinter?.name;
+      }
+    } catch (err) {
+      console.warn('Could not determine printer list:', err);
+    }
+
+    const silent = typeof receiptData?.silent === 'boolean' ? receiptData.silent : false;
+
+    return await new Promise((resolve) => {
       printWindow.webContents.print(
         {
-          silent: false, // Show Windows print dialog
+          silent,
           printBackground: false,
-          color: false, // thermal printers are monochrome
-          margins: {
-            marginType: "none",
-          },
-          pageSize: {
-            width: 80000, // 80mm in microns
-            height: 297000, // A4 length in microns (will auto-cut based on content)
-          },
+          deviceName: deviceName || undefined,
+          margins: { marginType: 'none' },
         },
         (success, errorType) => {
           printWindow.close();
           if (success) {
-            console.log("Print successful");
+            console.log('Print successful', { deviceName, silent });
             resolve({ success: true });
           } else {
-            console.error("Print failed:", errorType);
-            resolve({
-              success: false,
-              error: `Print failed: ${errorType}`,
-            });
+            console.error('Print failed:', errorType);
+            resolve({ success: false, error: `Print failed: ${errorType}` });
           }
         }
       );
     });
   } catch (error) {
-    console.error("Thermal print error:", error);
+    console.error('Thermal print error:', error);
     return { success: false, error: String(error) };
   }
-}
+} 
 
 // Setup IPC handlers for database operations
 function setupIPCHandlers() {
