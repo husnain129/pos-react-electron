@@ -1,4 +1,6 @@
-import printer from "printer";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const printer = require("printer");
 
 interface PrintReceiptData {
   invoiceNo: string;
@@ -41,13 +43,13 @@ class PrinterService {
   initialize(): boolean {
     try {
       const printers = printer.getPrinters();
-      const pos80 = printers.find((p) => p.name === "POS-80");
+      const pos80 = printers.find((p: any) => p.name === "POS-80");
 
       if (!pos80) {
         console.error("POS-80 printer not found");
         console.log(
           "Available printers:",
-          printers.map((p) => p.name)
+          printers.map((p: any) => p.name)
         );
         return false;
       }
@@ -166,11 +168,11 @@ class PrinterService {
           data: receiptData,
           printer: this.printerName,
           type: "RAW",
-          success: (jobID) => {
+          success: (jobID: any) => {
             console.log("Print job sent successfully. Job ID:", jobID);
             resolve(true);
           },
-          error: (err) => {
+          error: (err: any) => {
             console.error("Print error:", err);
             reject(new Error(String(err)));
           },
@@ -204,11 +206,11 @@ class PrinterService {
           data: testData,
           printer: this.printerName,
           type: "RAW",
-          success: (jobID) => {
+          success: (jobID: any) => {
             console.log("Test print successful. Job ID:", jobID);
             resolve(true);
           },
-          error: (err) => {
+          error: (err: any) => {
             console.error("Test print error:", err);
             reject(new Error(String(err)));
           },
