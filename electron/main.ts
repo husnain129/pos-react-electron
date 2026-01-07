@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dbOperations } from "./database";
+import { printReceiptESCPOS, testPrintESCPOS } from "./escpos-printer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,7 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
   }
 
   try {
+    // Simplified HTML that works better with thermal printers
     const receiptHTML = `
 <!DOCTYPE html>
 <html>
@@ -32,24 +34,38 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
   <style>
     @page {
       size: 80mm auto;
-      margin: 0;
+      margin: 0mm;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @media print {
+      body { margin: 0; padding: 0; }
+    }
     body {
-      width: 80mm;
-      font-family: monospace;
-      font-size: 12px;
-      line-height: 1.4;
+      width: 72mm;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      line-height: 1.3;
       color: #000;
       background: #fff;
-      padding: 3mm;
+      margin: 0;
+      padding: 2mm;
     }
     .center { text-align: center; }
+    .left { text-align: left; }
+    .right { text-align: right; }
     .bold { font-weight: bold; }
-    .large { font-size: 16px; }
-    .line { border-top: 1px dashed #000; margin: 4px 0; }
-    .row { display: flex; justify-content: space-between; margin: 2px 0; }
-    .mb { margin-bottom: 5px; }
+    .large { font-size: 14px; }
+    .line { 
+      border-bottom: 1px dashed #000; 
+      margin: 3px 0; 
+      height: 1px;
+    }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+    }
+    td { padding: 1px 0; }
+    .item-name { width: 60%; }
+    .item-price { width: 40%; text-align: right; }
   </style>
 </head>
 <body>
@@ -57,79 +73,92 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
     <div class="large bold">Creative Hands</div>
     <div>By TEVTA</div>
     <div>Point of Sale System</div>
-    <div class="mb"></div>
-    <div class="bold">SALES RECEIPT</div>
-    <div>Invoice: ${receiptData.invoiceNo}</div>
-    <div>${receiptData.date}</div>
   </div>
   <div class="line"></div>
-  <div>Customer: ${receiptData.customer_name}</div>
-  <div>Payment: ${receiptData.payment_method}</div>
+  <div class="center bold">SALES RECEIPT</div>
+  <div class="center">Invoice: ${receiptData.invoiceNo}</div>
+  <div class="center">${receiptData.date}</div>
   <div class="line"></div>
-  ${receiptData.items
-    .map(
-      (item: any) => `
-    <div class="row">
-      <span>${item.name.substring(0, 20)}</span>
-      <span>${item.quantity} x Rs${Number(item.price).toFixed(2)}</span>
-    </div>
-    <div class="row">
-      <span></span>
-      <span class="bold">Rs ${Number(item.total).toFixed(2)}</span>
-    </div>
-  `
-    )
-    .join("")}
+  <div class="left">
+    <div>Customer: ${receiptData.customer_name}</div>
+    <div>Payment: ${receiptData.payment_method}</div>
+  </div>
   <div class="line"></div>
-  <div class="row"><span>Subtotal:</span><span>Rs ${Number(
-    receiptData.subtotal
-  ).toFixed(2)}</span></div>
-  ${
-    receiptData.taxPercentage > 0
-      ? `
-    <div class="row"><span>Tax (${
-      receiptData.taxPercentage
-    }%):</span><span>Rs ${Number(receiptData.tax).toFixed(2)}</span></div>
-  `
-      : ""
-  }
-  ${
-    receiptData.discountAmount > 0
-      ? `
-    <div class="row"><span>Discount:</span><span>-Rs ${Number(
-      receiptData.discountAmount
-    ).toFixed(2)}</span></div>
-  `
-      : ""
-  }
+  <table>
+    ${receiptData.items
+      .map(
+        (item: any) => `
+      <tr>
+        <td class="item-name">${item.name.substring(0, 20)}</td>
+        <td class="item-price">${item.quantity} x ${Number(item.price).toFixed(
+          2
+        )}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td class="item-price bold">Rs ${Number(item.total).toFixed(2)}</td>
+      </tr>
+    `
+      )
+      .join("")}
+  </table>
   <div class="line"></div>
-  <div class="row bold large"><span>TOTAL:</span><span>Rs ${Number(
-    receiptData.total
-  ).toFixed(2)}</span></div>
-  <div class="row"><span>Paid:</span><span>Rs ${Number(
-    receiptData.paid
-  ).toFixed(2)}</span></div>
-  ${
-    receiptData.change > 0
-      ? `
-    <div class="row bold"><span>Change:</span><span>Rs ${Number(
-      receiptData.change
-    ).toFixed(2)}</span></div>
-  `
-      : ""
-  }
+  <table>
+    <tr>
+      <td>Subtotal:</td>
+      <td class="right">Rs ${Number(receiptData.subtotal).toFixed(2)}</td>
+    </tr>
+    ${
+      receiptData.taxPercentage > 0
+        ? `<tr>
+      <td>Tax (${receiptData.taxPercentage}%):</td>
+      <td class="right">Rs ${Number(receiptData.tax).toFixed(2)}</td>
+    </tr>`
+        : ""
+    }
+    ${
+      receiptData.discountAmount > 0
+        ? `<tr>
+      <td>Discount:</td>
+      <td class="right">-Rs ${Number(receiptData.discountAmount).toFixed(
+        2
+      )}</td>
+    </tr>`
+        : ""
+    }
+  </table>
   <div class="line"></div>
-  <div class="center mb">
+  <table>
+    <tr class="bold large">
+      <td>TOTAL:</td>
+      <td class="right">Rs ${Number(receiptData.total).toFixed(2)}</td>
+    </tr>
+    <tr>
+      <td>Paid:</td>
+      <td class="right">Rs ${Number(receiptData.paid).toFixed(2)}</td>
+    </tr>
+    ${
+      receiptData.change > 0
+        ? `<tr class="bold">
+      <td>Change:</td>
+      <td class="right">Rs ${Number(receiptData.change).toFixed(2)}</td>
+    </tr>`
+        : ""
+    }
+  </table>
+  <div class="line"></div>
+  <div class="center">
     <div>Thank you for your business!</div>
     <div>Served by: ${receiptData.user}</div>
-    <div class="mb"></div>
+    <br>
     <div>TEVTA - Creative Hands</div>
   </div>
+  <br><br><br>
 </body>
 </html>`;
 
     const printWindow = new BrowserWindow({
-      show: false,
+      show: false, // Change to true for debugging
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -140,21 +169,31 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
       `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Give more time to render
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     return new Promise((resolve) => {
       printWindow.webContents.print(
         {
           silent: true,
-          printBackground: true,
+          printBackground: false, // Changed to false
+          color: false, // Added: thermal printers are monochrome
           deviceName: "POS-80",
-          margins: { marginType: "none" },
+          margins: {
+            marginType: "none",
+          },
+          pageSize: {
+            width: 80000, // 80mm in microns
+            height: 0, // Auto height
+          },
         },
         (success, errorType) => {
           printWindow.close();
           if (success) {
+            console.log("Print successful");
             resolve({ success: true });
           } else {
+            console.error("Print failed:", errorType);
             resolve({
               success: false,
               error: `Print failed: ${errorType}`,
@@ -385,6 +424,16 @@ function setupIPCHandlers() {
   // Printer test
   ipcMain.handle("printer:test", async () => {
     try {
+      // Try ESC/POS first
+      console.log('Attempting ESC/POS test print...');
+      const result = await testPrintESCPOS();
+      if (result.success) {
+        console.log('ESC/POS test print successful');
+        return result;
+      }
+      
+      console.log('ESC/POS failed, trying HTML fallback...');
+      // Fallback to HTML if ESC/POS fails
       if (!win) {
         return { success: false, error: "No window available" };
       }
@@ -453,12 +502,44 @@ function setupIPCHandlers() {
 
   // Print receipt - uses shared function
   ipcMain.handle("printer:print-receipt", async (_event, receiptData: any) => {
-    return await printThermalReceipt(receiptData);
+    try {
+      // Try ESC/POS first
+      console.log('Attempting ESC/POS receipt print...');
+      const result = await printReceiptESCPOS(receiptData);
+      if (result.success) {
+        console.log('ESC/POS receipt print successful');
+        return result;
+      }
+      
+      console.log('ESC/POS failed, trying HTML fallback...');
+      // Fallback to HTML if ESC/POS fails
+      return await printThermalReceipt(receiptData);
+    } catch (error: any) {
+      console.error("Print receipt error:", error);
+      // Try HTML as last resort
+      return await printThermalReceipt(receiptData);
+    }
   });
 
   // Main thermal printing - uses shared function
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
-    return await printThermalReceipt(receiptData);
+    try {
+      // Try ESC/POS first
+      console.log('Attempting ESC/POS thermal print...');
+      const result = await printReceiptESCPOS(receiptData);
+      if (result.success) {
+        console.log('ESC/POS thermal print successful');
+        return result;
+      }
+      
+      console.log('ESC/POS failed, trying HTML fallback...');
+      // Fallback to HTML if ESC/POS fails
+      return await printThermalReceipt(receiptData);
+    } catch (error: any) {
+      console.error("Thermal print error:", error);
+      // Try HTML as last resort
+      return await printThermalReceipt(receiptData);
+    }
   });
 
   // HTML thermal printing - uses shared function
