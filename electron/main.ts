@@ -184,7 +184,7 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
           },
           pageSize: {
             width: 80000, // 80mm in microns
-            height: 0, // Auto height
+            height: 297000, // A4 length in microns (will auto-cut based on content)
           },
         },
         (success, errorType) => {
@@ -425,14 +425,14 @@ function setupIPCHandlers() {
   ipcMain.handle("printer:test", async () => {
     try {
       // Try ESC/POS first
-      console.log('Attempting ESC/POS test print...');
+      console.log("Attempting ESC/POS test print...");
       const result = await testPrintESCPOS();
       if (result.success) {
-        console.log('ESC/POS test print successful');
+        console.log("ESC/POS test print successful");
         return result;
       }
-      
-      console.log('ESC/POS failed, trying HTML fallback...');
+
+      console.log("ESC/POS failed, trying HTML fallback...");
       // Fallback to HTML if ESC/POS fails
       if (!win) {
         return { success: false, error: "No window available" };
@@ -504,14 +504,14 @@ function setupIPCHandlers() {
   ipcMain.handle("printer:print-receipt", async (_event, receiptData: any) => {
     try {
       // Try ESC/POS first
-      console.log('Attempting ESC/POS receipt print...');
+      console.log("Attempting ESC/POS receipt print...");
       const result = await printReceiptESCPOS(receiptData);
       if (result.success) {
-        console.log('ESC/POS receipt print successful');
+        console.log("ESC/POS receipt print successful");
         return result;
       }
-      
-      console.log('ESC/POS failed, trying HTML fallback...');
+
+      console.log("ESC/POS failed, trying HTML fallback...");
       // Fallback to HTML if ESC/POS fails
       return await printThermalReceipt(receiptData);
     } catch (error: any) {
@@ -525,14 +525,14 @@ function setupIPCHandlers() {
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
     try {
       // Try ESC/POS first
-      console.log('Attempting ESC/POS thermal print...');
+      console.log("Attempting ESC/POS thermal print...");
       const result = await printReceiptESCPOS(receiptData);
       if (result.success) {
-        console.log('ESC/POS thermal print successful');
+        console.log("ESC/POS thermal print successful");
         return result;
       }
-      
-      console.log('ESC/POS failed, trying HTML fallback...');
+
+      console.log("ESC/POS failed, trying HTML fallback...");
       // Fallback to HTML if ESC/POS fails
       return await printThermalReceipt(receiptData);
     } catch (error: any) {
