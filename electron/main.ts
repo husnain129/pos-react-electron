@@ -175,10 +175,9 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
     return new Promise((resolve) => {
       printWindow.webContents.print(
         {
-          silent: true,
-          printBackground: false, // Changed to false
-          color: false, // Added: thermal printers are monochrome
-          deviceName: "POS-80",
+          silent: false, // Show Windows print dialog
+          printBackground: false,
+          color: false, // thermal printers are monochrome
           margins: {
             marginType: "none",
           },

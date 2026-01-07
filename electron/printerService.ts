@@ -22,12 +22,22 @@ interface PrintReceiptData {
 let printer: any = null;
 
 // Try to load printer module (only works on Windows after rebuild)
-try {
-  printer = require("printer");
-  console.log("Printer module loaded successfully");
-} catch (error) {
-  console.log("Printer module not available, will use HTML printing fallback");
+async function loadPrinterModule() {
+  try {
+    // Use dynamic import for ESM compatibility
+    const { createRequire } = await import("module");
+    const require = createRequire(import.meta.url);
+    printer = require("printer");
+    console.log("Printer module loaded successfully");
+  } catch (error) {
+    console.log(
+      "Printer module not available, will use HTML printing fallback"
+    );
+  }
 }
+
+// Initialize printer module
+loadPrinterModule();
 
 class PrinterService {
   private printerName: string = "POS-80";
