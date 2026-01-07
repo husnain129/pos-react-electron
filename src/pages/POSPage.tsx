@@ -196,29 +196,18 @@ const POSPage: React.FC = () => {
       setPaidAmount(0);
       setPaymentMethod("Cash");
 
-      // Auto-print immediately after completing sale
-      try {
-        const result = await printReceipt(invoiceData);
-        if (result.success) {
-          Swal.fire({
-            icon: "success",
-            title: "Success!",
-            text: "Sale completed and receipt printed",
-            timer: 1500,
-            showConfirmButton: false,
-          });
-        }
-      } catch (error: any) {
-        Swal.fire({
-          icon: "warning",
-          title: "Print Failed",
-          text: error.message || "Sale completed but failed to print receipt",
-          timer: 3000,
-        });
-        // Show invoice for manual printing
-        setInvoiceData(invoiceData);
-        setShowInvoice(true);
-      }
+      // Show success message and navigate to receipt page
+      Swal.fire({
+        icon: "success",
+        title: "Success!",
+        text: "Sale completed successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+
+      // Show invoice for viewing and printing
+      setInvoiceData(invoiceData);
+      setShowInvoice(true);
     } catch (error) {
       console.error("Error completing sale:", error);
       Swal.fire("Error", "Failed to complete sale", "error");
