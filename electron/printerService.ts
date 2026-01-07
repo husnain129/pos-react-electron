@@ -1,7 +1,3 @@
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const printer = require("printer");
-
 interface PrintReceiptData {
   invoiceNo: string;
   date: string;
@@ -23,24 +19,25 @@ interface PrintReceiptData {
   user: string;
 }
 
+let printer: any = null;
+
+// Try to load printer module (only works on Windows after rebuild)
+try {
+  printer = require("printer");
+  console.log("Printer module loaded successfully");
+} catch (error) {
+  console.log("Printer module not available, will use HTML printing fallback");
+}
+
 class PrinterService {
   private printerName: string = "POS-80";
 
-  // ESC/POS Commands
-  private readonly ESC = "\x1B";
-  private readonly GS = "\x1D";
-
-  private readonly CMD_INIT = this.ESC + "@";
-  private readonly CMD_BOLD_ON = this.ESC + "E" + "\x01";
-  private readonly CMD_BOLD_OFF = this.ESC + "E" + "\x00";
-  private readonly CMD_ALIGN_LEFT = this.ESC + "a" + "\x00";
-  private readonly CMD_ALIGN_CENTER = this.ESC + "a" + "\x01";
-  private readonly CMD_SIZE_NORMAL = this.GS + "!" + "\x00";
-  private readonly CMD_SIZE_DOUBLE = this.GS + "!" + "\x11";
-  private readonly CMD_CUT = this.GS + "V" + "\x00";
-  private readonly CMD_NEWLINE = "\n";
-
   initialize(): boolean {
+    if (!printer) {
+      console.log("Using HTML printing mode");
+      return true;
+    }
+
     try {
       const printers = printer.getPrinters();
       const pos80 = printers.find((p: any) => p.name === "POS-80");
@@ -63,103 +60,11 @@ class PrinterService {
     }
   }
 
-  private buildReceiptData(data: PrintReceiptData): string {
-    let receipt = "";
-
-    receipt += this.CMD_INIT;
-    receipt += this.CMD_ALIGN_CENTER;
-    receipt += this.CMD_SIZE_DOUBLE;
-    receipt += this.CMD_BOLD_ON;
-    receipt += "Creative Hands" + this.CMD_NEWLINE;
-    receipt += this.CMD_BOLD_OFF;
-    receipt += this.CMD_SIZE_NORMAL;
-    receipt += "By TEVTA" + this.CMD_NEWLINE;
-    receipt += "Point of Sale System" + this.CMD_NEWLINE;
-    receipt += this.CMD_NEWLINE;
-    receipt += this.CMD_BOLD_ON;
-    receipt += "SALES RECEIPT" + this.CMD_NEWLINE;
-    receipt += this.CMD_BOLD_OFF;
-    receipt += `Invoice: ${data.invoiceNo}` + this.CMD_NEWLINE;
-    receipt += data.date + this.CMD_NEWLINE;
-    receipt += this.line();
-
-    receipt += this.CMD_ALIGN_LEFT;
-    receipt += `Customer: ${data.customer_name}` + this.CMD_NEWLINE;
-    receipt += `Payment: ${data.payment_method}` + this.CMD_NEWLINE;
-    receipt += this.line();
-
-    data.items.forEach((item) => {
-      receipt += item.name.substring(0, 30) + this.CMD_NEWLINE;
-      receipt += `${item.quantity} x Rs${item.price.toFixed(2)}`;
-      receipt += this.pad(
-        48 - `${item.quantity} x Rs${item.price.toFixed(2)}`.length
-      );
-      receipt += this.CMD_BOLD_ON;
-      receipt += `Rs ${item.total.toFixed(2)}` + this.CMD_NEWLINE;
-      receipt += this.CMD_BOLD_OFF;
-    });
-
-    receipt += this.line();
-    receipt += this.formatLine("Subtotal:", `Rs ${data.subtotal.toFixed(2)}`);
-
-    if (data.taxPercentage > 0) {
-      receipt += this.formatLine(
-        `Tax (${data.taxPercentage}%):`,
-        `Rs ${data.tax.toFixed(2)}`
-      );
-    }
-
-    if (data.discountAmount > 0) {
-      receipt += this.formatLine(
-        "Discount:",
-        `-Rs ${data.discountAmount.toFixed(2)}`
-      );
-    }
-
-    receipt += this.line();
-    receipt += this.CMD_BOLD_ON;
-    receipt += this.CMD_SIZE_DOUBLE;
-    receipt += this.formatLine("TOTAL:", `Rs ${data.total.toFixed(2)}`);
-    receipt += this.CMD_SIZE_NORMAL;
-    receipt += this.CMD_BOLD_OFF;
-    receipt += this.formatLine("Paid:", `Rs ${data.paid.toFixed(2)}`);
-
-    if (data.change > 0) {
-      receipt += this.CMD_BOLD_ON;
-      receipt += this.formatLine("Change:", `Rs ${data.change.toFixed(2)}`);
-      receipt += this.CMD_BOLD_OFF;
-    }
-
-    receipt += this.line();
-    receipt += this.CMD_ALIGN_CENTER;
-    receipt += "Thank you for your business!" + this.CMD_NEWLINE;
-    receipt += `Served by: ${data.user}` + this.CMD_NEWLINE;
-    receipt += this.CMD_NEWLINE;
-    receipt += "TEVTA - Creative Hands" + this.CMD_NEWLINE;
-    receipt += this.CMD_NEWLINE;
-    receipt += this.CMD_NEWLINE;
-    receipt += this.CMD_CUT;
-
-    return receipt;
-  }
-
-  private line(): string {
-    return (
-      "------------------------------------------------" + this.CMD_NEWLINE
-    );
-  }
-
-  private pad(length: number): string {
-    return " ".repeat(Math.max(0, length));
-  }
-
-  private formatLine(left: string, right: string): string {
-    const totalWidth = 48;
-    const padding = totalWidth - left.length - right.length;
-    return left + this.pad(padding) + right + this.CMD_NEWLINE;
-  }
-
   async printReceipt(data: PrintReceiptData): Promise<boolean> {
+    if (!printer) {
+      throw new Error("Printer module not available, use HTML printing");
+    }
+
     return new Promise((resolve, reject) => {
       try {
         const receiptData = this.buildReceiptData(data);
@@ -168,13 +73,13 @@ class PrinterService {
           data: receiptData,
           printer: this.printerName,
           type: "RAW",
-          success: (jobID: any) => {
+          success: (jobID: string) => {
             console.log("Print job sent successfully. Job ID:", jobID);
             resolve(true);
           },
           error: (err: any) => {
             console.error("Print error:", err);
-            reject(new Error(String(err)));
+            reject(new Error(err));
           },
         });
       } catch (error) {
@@ -185,34 +90,25 @@ class PrinterService {
   }
 
   async testPrint(): Promise<boolean> {
+    if (!printer) {
+      throw new Error("Printer module not available, use HTML printing");
+    }
+
     return new Promise((resolve, reject) => {
       try {
-        let testData = this.CMD_INIT;
-        testData += this.CMD_ALIGN_CENTER;
-        testData += this.CMD_SIZE_DOUBLE;
-        testData += this.CMD_BOLD_ON;
-        testData += "TEST PRINT" + this.CMD_NEWLINE;
-        testData += this.CMD_BOLD_OFF;
-        testData += this.CMD_SIZE_NORMAL;
-        testData += "POS-80 Thermal Printer" + this.CMD_NEWLINE;
-        testData += "Printer is working!" + this.CMD_NEWLINE;
-        testData += this.CMD_NEWLINE;
-        testData += new Date().toLocaleString() + this.CMD_NEWLINE;
-        testData += this.line();
-        testData += this.CMD_NEWLINE;
-        testData += this.CMD_CUT;
+        const testData = this.buildTestData();
 
         printer.printDirect({
           data: testData,
           printer: this.printerName,
           type: "RAW",
-          success: (jobID: any) => {
+          success: (jobID: string) => {
             console.log("Test print successful. Job ID:", jobID);
             resolve(true);
           },
           error: (err: any) => {
             console.error("Test print error:", err);
-            reject(new Error(String(err)));
+            reject(new Error(err));
           },
         });
       } catch (error) {
@@ -223,7 +119,113 @@ class PrinterService {
   }
 
   listPrinters() {
+    if (!printer) {
+      return [];
+    }
     return printer.getPrinters();
+  }
+
+  private buildReceiptData(data: PrintReceiptData): string {
+    const ESC = "\x1B";
+    const GS = "\x1D";
+    const CMD_INIT = ESC + "@";
+    const CMD_BOLD_ON = ESC + "E" + "\x01";
+    const CMD_BOLD_OFF = ESC + "E" + "\x00";
+    const CMD_ALIGN_CENTER = ESC + "a" + "\x01";
+    const CMD_ALIGN_LEFT = ESC + "a" + "\x00";
+    const CMD_SIZE_DOUBLE = GS + "!" + "\x11";
+    const CMD_SIZE_NORMAL = GS + "!" + "\x00";
+    const CMD_CUT = GS + "V" + "\x00";
+    const NL = "\n";
+
+    let receipt = CMD_INIT;
+    receipt += CMD_ALIGN_CENTER;
+    receipt += CMD_SIZE_DOUBLE + CMD_BOLD_ON;
+    receipt += "Creative Hands" + NL;
+    receipt += CMD_SIZE_NORMAL + CMD_BOLD_OFF;
+    receipt += "By TEVTA" + NL;
+    receipt += "Point of Sale System" + NL + NL;
+    receipt += CMD_BOLD_ON + "SALES RECEIPT" + NL + CMD_BOLD_OFF;
+    receipt += `Invoice: ${data.invoiceNo}` + NL;
+    receipt += data.date + NL;
+    receipt += "------------------------------------------------" + NL;
+    receipt += CMD_ALIGN_LEFT;
+    receipt += `Customer: ${data.customer_name}` + NL;
+    receipt += `Payment: ${data.payment_method}` + NL;
+    receipt += "------------------------------------------------" + NL;
+
+    data.items.forEach((item) => {
+      receipt += item.name.substring(0, 30) + NL;
+      const line =
+        `${item.quantity} x Rs${item.price.toFixed(2)}`.padEnd(30) +
+        CMD_BOLD_ON +
+        `Rs ${item.total.toFixed(2)}` +
+        CMD_BOLD_OFF +
+        NL;
+      receipt += line;
+    });
+
+    receipt += "------------------------------------------------" + NL;
+    receipt += `Subtotal:`.padEnd(35) + `Rs ${data.subtotal.toFixed(2)}` + NL;
+
+    if (data.taxPercentage > 0) {
+      receipt +=
+        `Tax (${data.taxPercentage}%):`.padEnd(35) +
+        `Rs ${data.tax.toFixed(2)}` +
+        NL;
+    }
+
+    if (data.discountAmount > 0) {
+      receipt +=
+        `Discount:`.padEnd(35) + `-Rs ${data.discountAmount.toFixed(2)}` + NL;
+    }
+
+    receipt += "------------------------------------------------" + NL;
+    receipt += CMD_BOLD_ON + CMD_SIZE_DOUBLE;
+    receipt += `TOTAL:`.padEnd(20) + `Rs ${data.total.toFixed(2)}` + NL;
+    receipt += CMD_SIZE_NORMAL + CMD_BOLD_OFF;
+    receipt += `Paid:`.padEnd(35) + `Rs ${data.paid.toFixed(2)}` + NL;
+
+    if (data.change > 0) {
+      receipt += CMD_BOLD_ON;
+      receipt += `Change:`.padEnd(35) + `Rs ${data.change.toFixed(2)}` + NL;
+      receipt += CMD_BOLD_OFF;
+    }
+
+    receipt += "------------------------------------------------" + NL;
+    receipt += CMD_ALIGN_CENTER;
+    receipt += "Thank you for your business!" + NL;
+    receipt += `Served by: ${data.user}` + NL + NL;
+    receipt += "TEVTA - Creative Hands" + NL + NL + NL;
+    receipt += CMD_CUT;
+
+    return receipt;
+  }
+
+  private buildTestData(): string {
+    const ESC = "\x1B";
+    const GS = "\x1D";
+    const CMD_INIT = ESC + "@";
+    const CMD_BOLD_ON = ESC + "E" + "\x01";
+    const CMD_BOLD_OFF = ESC + "E" + "\x00";
+    const CMD_ALIGN_CENTER = ESC + "a" + "\x01";
+    const CMD_SIZE_DOUBLE = GS + "!" + "\x11";
+    const CMD_SIZE_NORMAL = GS + "!" + "\x00";
+    const CMD_CUT = GS + "V" + "\x00";
+    const NL = "\n";
+
+    let test = CMD_INIT;
+    test += CMD_ALIGN_CENTER;
+    test += CMD_SIZE_DOUBLE + CMD_BOLD_ON;
+    test += "TEST PRINT" + NL;
+    test += CMD_SIZE_NORMAL + CMD_BOLD_OFF;
+    test += "POS-80 Thermal Printer" + NL;
+    test += "Printer is working!" + NL + NL;
+    test += new Date().toLocaleString() + NL;
+    test += "------------------------------------------------" + NL + NL;
+    test += CMD_CUT;
+
+    return test;
   }
 }
 

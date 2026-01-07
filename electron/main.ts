@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dbOperations } from "./database";
-import { printerService } from "./printerService";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,6 +16,158 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
+
+// Helper function for HTML-based thermal printing
+async function printThermalReceipt(receiptData: any): Promise<any> {
+  if (!win) {
+    return { success: false, error: "No window available" };
+  }
+
+  try {
+    const receiptHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 80mm;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #000;
+      background: #fff;
+      padding: 3mm;
+    }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .large { font-size: 16px; }
+    .line { border-top: 1px dashed #000; margin: 4px 0; }
+    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+    .mb { margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div class="large bold">Creative Hands</div>
+    <div>By TEVTA</div>
+    <div>Point of Sale System</div>
+    <div class="mb"></div>
+    <div class="bold">SALES RECEIPT</div>
+    <div>Invoice: ${receiptData.invoiceNo}</div>
+    <div>${receiptData.date}</div>
+  </div>
+  <div class="line"></div>
+  <div>Customer: ${receiptData.customer_name}</div>
+  <div>Payment: ${receiptData.payment_method}</div>
+  <div class="line"></div>
+  ${receiptData.items
+    .map(
+      (item: any) => `
+    <div class="row">
+      <span>${item.name.substring(0, 20)}</span>
+      <span>${item.quantity} x Rs${Number(item.price).toFixed(2)}</span>
+    </div>
+    <div class="row">
+      <span></span>
+      <span class="bold">Rs ${Number(item.total).toFixed(2)}</span>
+    </div>
+  `
+    )
+    .join("")}
+  <div class="line"></div>
+  <div class="row"><span>Subtotal:</span><span>Rs ${Number(
+    receiptData.subtotal
+  ).toFixed(2)}</span></div>
+  ${
+    receiptData.taxPercentage > 0
+      ? `
+    <div class="row"><span>Tax (${
+      receiptData.taxPercentage
+    }%):</span><span>Rs ${Number(receiptData.tax).toFixed(2)}</span></div>
+  `
+      : ""
+  }
+  ${
+    receiptData.discountAmount > 0
+      ? `
+    <div class="row"><span>Discount:</span><span>-Rs ${Number(
+      receiptData.discountAmount
+    ).toFixed(2)}</span></div>
+  `
+      : ""
+  }
+  <div class="line"></div>
+  <div class="row bold large"><span>TOTAL:</span><span>Rs ${Number(
+    receiptData.total
+  ).toFixed(2)}</span></div>
+  <div class="row"><span>Paid:</span><span>Rs ${Number(
+    receiptData.paid
+  ).toFixed(2)}</span></div>
+  ${
+    receiptData.change > 0
+      ? `
+    <div class="row bold"><span>Change:</span><span>Rs ${Number(
+      receiptData.change
+    ).toFixed(2)}</span></div>
+  `
+      : ""
+  }
+  <div class="line"></div>
+  <div class="center mb">
+    <div>Thank you for your business!</div>
+    <div>Served by: ${receiptData.user}</div>
+    <div class="mb"></div>
+    <div>TEVTA - Creative Hands</div>
+  </div>
+</body>
+</html>`;
+
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+
+    await printWindow.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    return new Promise((resolve) => {
+      printWindow.webContents.print(
+        {
+          silent: true,
+          printBackground: true,
+          deviceName: "POS-80",
+          margins: { marginType: "none" },
+        },
+        (success, errorType) => {
+          printWindow.close();
+          if (success) {
+            resolve({ success: true });
+          } else {
+            resolve({
+              success: false,
+              error: `Print failed: ${errorType}`,
+            });
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error("Thermal print error:", error);
+    return { success: false, error: String(error) };
+  }
+}
 
 // Setup IPC handlers for database operations
 function setupIPCHandlers() {
@@ -201,6 +352,8 @@ function setupIPCHandlers() {
     return await dbOperations.settings.update(settingsData);
   });
 
+  // ===== PRINTER HANDLERS =====
+
   // Get list of available printers
   ipcMain.handle("print:listPrinters", async () => {
     try {
@@ -223,183 +376,55 @@ function setupIPCHandlers() {
     }
   });
 
-  // ===== PRINTER HANDLERS =====
-  // Printer initialize handler
+  // Printer initialize
   ipcMain.handle("printer:initialize", async () => {
-    try {
-      return printerService.initialize();
-    } catch (error: any) {
-      console.error("Printer initialization error:", error);
-      return false;
-    }
+    console.log("Printer initialized (HTML mode)");
+    return true;
   });
 
-  // Printer test handler
+  // Printer test
   ipcMain.handle("printer:test", async () => {
     try {
-      await printerService.testPrint();
-      return { success: true };
-    } catch (error: any) {
-      console.error("Printer test error:", error);
-      return { success: false, error: error.message };
-    }
-  });
+      if (!win) {
+        return { success: false, error: "No window available" };
+      }
 
-  // Print receipt using ESC/POS
-  ipcMain.handle("printer:print-receipt", async (_event, receiptData: any) => {
-    try {
-      await printerService.printReceipt(receiptData);
-      return { success: true };
-    } catch (error: any) {
-      console.error("Print receipt error:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // List all system printers
-  ipcMain.handle("printer:list", async () => {
-    try {
-      const printers = printerService.listPrinters();
-      return { success: true, printers };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Main thermal printing handler using ESC/POS
-  ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
-    try {
-      await printerService.printReceipt(receiptData);
-      return { success: true };
-    } catch (error: any) {
-      console.error("Thermal print error:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Fallback HTML-based thermal printing
-  ipcMain.handle("print:thermal-html", async (_event, receiptData: any) => {
-    if (!win) {
-      return { success: false, error: "No window available" };
-    }
-
-    try {
-      const receiptHTML = `
+      const testHTML = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <style>
-    @page {
-      size: 80mm auto;
-      margin: 0;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @page { size: 80mm auto; margin: 0; }
+    * { margin: 0; padding: 0; }
     body {
       width: 80mm;
       font-family: monospace;
       font-size: 12px;
-      line-height: 1.4;
-      color: #000;
-      background: #fff;
       padding: 3mm;
+      text-align: center;
     }
-    .center { text-align: center; }
-    .bold { font-weight: bold; }
-    .large { font-size: 16px; }
+    .large { font-size: 16px; font-weight: bold; }
     .line { border-top: 1px dashed #000; margin: 4px 0; }
-    .row { display: flex; justify-content: space-between; margin: 2px 0; }
-    .mb { margin-bottom: 5px; }
   </style>
 </head>
 <body>
-  <div class="center">
-    <div class="large bold">Creative Hands</div>
-    <div>By TEVTA</div>
-    <div>Point of Sale System</div>
-    <div class="mb"></div>
-    <div class="bold">SALES RECEIPT</div>
-    <div>Invoice: ${receiptData.invoiceNo}</div>
-    <div>${receiptData.date}</div>
-  </div>
+  <div class="large">TEST PRINT</div>
+  <div>POS-80 Thermal Printer</div>
+  <div>Printer is working!</div>
   <div class="line"></div>
-  <div>Customer: ${receiptData.customer_name}</div>
-  <div>Payment: ${receiptData.payment_method}</div>
-  <div class="line"></div>
-  ${receiptData.items
-    .map(
-      (item: any) => `
-    <div class="row">
-      <span>${item.name.substring(0, 20)}</span>
-      <span>${item.quantity} x Rs${Number(item.price).toFixed(2)}</span>
-    </div>
-    <div class="row">
-      <span></span>
-      <span class="bold">Rs ${Number(item.total).toFixed(2)}</span>
-    </div>
-  `
-    )
-    .join("")}
-  <div class="line"></div>
-  <div class="row"><span>Subtotal:</span><span>Rs ${Number(
-    receiptData.subtotal
-  ).toFixed(2)}</span></div>
-  ${
-    receiptData.taxPercentage > 0
-      ? `
-    <div class="row"><span>Tax (${
-      receiptData.taxPercentage
-    }%):</span><span>Rs ${Number(receiptData.tax).toFixed(2)}</span></div>
-  `
-      : ""
-  }
-  ${
-    receiptData.discountAmount > 0
-      ? `
-    <div class="row"><span>Discount:</span><span>-Rs ${Number(
-      receiptData.discountAmount
-    ).toFixed(2)}</span></div>
-  `
-      : ""
-  }
-  <div class="line"></div>
-  <div class="row bold large"><span>TOTAL:</span><span>Rs ${Number(
-    receiptData.total
-  ).toFixed(2)}</span></div>
-  <div class="row"><span>Paid:</span><span>Rs ${Number(
-    receiptData.paid
-  ).toFixed(2)}</span></div>
-  ${
-    receiptData.change > 0
-      ? `
-    <div class="row bold"><span>Change:</span><span>Rs ${Number(
-      receiptData.change
-    ).toFixed(2)}</span></div>
-  `
-      : ""
-  }
-  <div class="line"></div>
-  <div class="center mb">
-    <div>Thank you for your business!</div>
-    <div>Served by: ${receiptData.user}</div>
-    <div class="mb"></div>
-    <div>TEVTA - Creative Hands</div>
-  </div>
+  <div>${new Date().toLocaleString()}</div>
 </body>
 </html>`;
 
       const printWindow = new BrowserWindow({
         show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
+        webPreferences: { nodeIntegration: false, contextIsolation: true },
       });
 
       await printWindow.loadURL(
-        `data:text/html;charset=utf-8,${encodeURIComponent(receiptHTML)}`
+        `data:text/html;charset=utf-8,${encodeURIComponent(testHTML)}`
       );
-
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       return new Promise((resolve) => {
@@ -412,20 +437,43 @@ function setupIPCHandlers() {
           },
           (success, errorType) => {
             printWindow.close();
-            if (success) {
-              resolve({ success: true });
-            } else {
-              resolve({
-                success: false,
-                error: `Print failed: ${errorType}`,
-              });
-            }
+            resolve(
+              success
+                ? { success: true }
+                : { success: false, error: `Print failed: ${errorType}` }
+            );
           }
         );
       });
-    } catch (error) {
-      console.error("HTML thermal print error:", error);
-      return { success: false, error: String(error) };
+    } catch (error: any) {
+      console.error("Printer test error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Print receipt - uses shared function
+  ipcMain.handle("printer:print-receipt", async (_event, receiptData: any) => {
+    return await printThermalReceipt(receiptData);
+  });
+
+  // Main thermal printing - uses shared function
+  ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
+    return await printThermalReceipt(receiptData);
+  });
+
+  // HTML thermal printing - uses shared function
+  ipcMain.handle("print:thermal-html", async (_event, receiptData: any) => {
+    return await printThermalReceipt(receiptData);
+  });
+
+  // List printers
+  ipcMain.handle("printer:list", async () => {
+    try {
+      if (!win) return { success: false, printers: [] };
+      const printers = await win.webContents.getPrintersAsync();
+      return { success: true, printers };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   });
 
@@ -482,11 +530,6 @@ app.on("activate", () => {
 });
 
 app.whenReady().then(() => {
-  // Setup all IPC handlers (includes printer handlers now)
   setupIPCHandlers();
-
-  // Initialize printer service
-  printerService.initialize();
-
   createWindow();
 });
