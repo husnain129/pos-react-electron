@@ -1,5 +1,4 @@
-import { ipcMain } from "electron";
-import { PrinterTypes, ThermalPrinter } from "node-thermal-printer";
+import printer from "printer";
 
 interface PrintReceiptData {
   invoiceNo: string;
@@ -23,215 +22,207 @@ interface PrintReceiptData {
 }
 
 class PrinterService {
-  private printer: ThermalPrinter | null = null;
+  private printerName: string = "POS-80";
 
-  initialize() {
+  // ESC/POS Commands
+  private readonly ESC = "\x1B";
+  private readonly GS = "\x1D";
+
+  private readonly CMD_INIT = this.ESC + "@";
+  private readonly CMD_BOLD_ON = this.ESC + "E" + "\x01";
+  private readonly CMD_BOLD_OFF = this.ESC + "E" + "\x00";
+  private readonly CMD_ALIGN_LEFT = this.ESC + "a" + "\x00";
+  private readonly CMD_ALIGN_CENTER = this.ESC + "a" + "\x01";
+  private readonly CMD_SIZE_NORMAL = this.GS + "!" + "\x00";
+  private readonly CMD_SIZE_DOUBLE = this.GS + "!" + "\x11";
+  private readonly CMD_CUT = this.GS + "V" + "\x00";
+  private readonly CMD_NEWLINE = "\n";
+
+  initialize(): boolean {
     try {
-      this.printer = new ThermalPrinter({
-        type: PrinterTypes.EPSON,
-        interface: "printer:POS-80",
-        removeSpecialCharacters: false,
-        lineCharacter: "-",
-        options: {
-          timeout: 5000,
-        },
-      });
+      const printers = printer.getPrinters();
+      const pos80 = printers.find((p) => p.name === "POS-80");
 
-      console.log("Thermal printer initialized successfully");
+      if (!pos80) {
+        console.error("POS-80 printer not found");
+        console.log(
+          "Available printers:",
+          printers.map((p) => p.name)
+        );
+        return false;
+      }
+
+      this.printerName = pos80.name;
+      console.log("Thermal printer initialized:", this.printerName);
       return true;
     } catch (error) {
-      console.error("Failed to initialize thermal printer:", error);
+      console.error("Failed to initialize printer:", error);
       return false;
     }
   }
 
-  async printReceipt(data: PrintReceiptData): Promise<boolean> {
-    try {
-      if (!this.printer) {
-        this.initialize();
-      }
+  private buildReceiptData(data: PrintReceiptData): string {
+    let receipt = "";
 
-      if (!this.printer) {
-        throw new Error("Printer not initialized");
-      }
+    receipt += this.CMD_INIT;
+    receipt += this.CMD_ALIGN_CENTER;
+    receipt += this.CMD_SIZE_DOUBLE;
+    receipt += this.CMD_BOLD_ON;
+    receipt += "Creative Hands" + this.CMD_NEWLINE;
+    receipt += this.CMD_BOLD_OFF;
+    receipt += this.CMD_SIZE_NORMAL;
+    receipt += "By TEVTA" + this.CMD_NEWLINE;
+    receipt += "Point of Sale System" + this.CMD_NEWLINE;
+    receipt += this.CMD_NEWLINE;
+    receipt += this.CMD_BOLD_ON;
+    receipt += "SALES RECEIPT" + this.CMD_NEWLINE;
+    receipt += this.CMD_BOLD_OFF;
+    receipt += `Invoice: ${data.invoiceNo}` + this.CMD_NEWLINE;
+    receipt += data.date + this.CMD_NEWLINE;
+    receipt += this.line();
 
-      this.printer.clear();
+    receipt += this.CMD_ALIGN_LEFT;
+    receipt += `Customer: ${data.customer_name}` + this.CMD_NEWLINE;
+    receipt += `Payment: ${data.payment_method}` + this.CMD_NEWLINE;
+    receipt += this.line();
 
-      // Header
-      this.printer.alignCenter();
-      this.printer.setTextSize(1, 1);
-      this.printer.bold(true);
-      this.printer.println("Creative Hands");
-      this.printer.bold(false);
-      this.printer.setTextNormal();
-      this.printer.println("By TEVTA");
-      this.printer.println("Point of Sale System");
-      this.printer.newLine();
-      this.printer.bold(true);
-      this.printer.println("SALES RECEIPT");
-      this.printer.bold(false);
-      this.printer.println(`Invoice: ${data.invoiceNo}`);
-      this.printer.println(data.date);
-      this.printer.drawLine();
+    data.items.forEach((item) => {
+      receipt += item.name.substring(0, 30) + this.CMD_NEWLINE;
+      receipt += `${item.quantity} x Rs${item.price.toFixed(2)}`;
+      receipt += this.pad(
+        48 - `${item.quantity} x Rs${item.price.toFixed(2)}`.length
+      );
+      receipt += this.CMD_BOLD_ON;
+      receipt += `Rs ${item.total.toFixed(2)}` + this.CMD_NEWLINE;
+      receipt += this.CMD_BOLD_OFF;
+    });
 
-      // Customer & Payment Info
-      this.printer.alignLeft();
-      this.printer.println(`Customer: ${data.customer_name}`);
-      this.printer.println(`Payment: ${data.payment_method}`);
-      this.printer.drawLine();
+    receipt += this.line();
+    receipt += this.formatLine("Subtotal:", `Rs ${data.subtotal.toFixed(2)}`);
 
-      // Items
-      data.items.forEach((item) => {
-        // Item name
-        const itemName = item.name.substring(0, 30);
-        this.printer!.println(itemName);
-
-        // Quantity x Price = Total
-        const qtyPrice = `${item.quantity} x Rs${item.price.toFixed(2)}`;
-        const total = `Rs ${item.total.toFixed(2)}`;
-
-        this.printer!.tableCustom([
-          { text: qtyPrice, align: "LEFT", width: 0.6 },
-          { text: total, align: "RIGHT", width: 0.4, bold: true },
-        ]);
-      });
-
-      this.printer.drawLine();
-
-      // Totals
-      this.printer.tableCustom([
-        { text: "Subtotal:", align: "LEFT", width: 0.6 },
-        { text: `Rs ${data.subtotal.toFixed(2)}`, align: "RIGHT", width: 0.4 },
-      ]);
-
-      if (data.taxPercentage > 0) {
-        this.printer.tableCustom([
-          { text: `Tax (${data.taxPercentage}%):`, align: "LEFT", width: 0.6 },
-          { text: `Rs ${data.tax.toFixed(2)}`, align: "RIGHT", width: 0.4 },
-        ]);
-      }
-
-      if (data.discountAmount > 0) {
-        this.printer.tableCustom([
-          { text: "Discount:", align: "LEFT", width: 0.6 },
-          {
-            text: `-Rs ${data.discountAmount.toFixed(2)}`,
-            align: "RIGHT",
-            width: 0.4,
-          },
-        ]);
-      }
-
-      this.printer.drawLine();
-
-      // Total
-      this.printer.bold(true);
-      this.printer.setTextSize(1, 1);
-      this.printer.tableCustom([
-        { text: "TOTAL:", align: "LEFT", width: 0.6 },
-        { text: `Rs ${data.total.toFixed(2)}`, align: "RIGHT", width: 0.4 },
-      ]);
-      this.printer.setTextNormal();
-      this.printer.bold(false);
-
-      // Payment details
-      this.printer.tableCustom([
-        { text: "Paid:", align: "LEFT", width: 0.6 },
-        { text: `Rs ${data.paid.toFixed(2)}`, align: "RIGHT", width: 0.4 },
-      ]);
-
-      if (data.change > 0) {
-        this.printer.bold(true);
-        this.printer.tableCustom([
-          { text: "Change:", align: "LEFT", width: 0.6 },
-          { text: `Rs ${data.change.toFixed(2)}`, align: "RIGHT", width: 0.4 },
-        ]);
-        this.printer.bold(false);
-      }
-
-      this.printer.drawLine();
-
-      // Footer
-      this.printer.alignCenter();
-      this.printer.println("Thank you for your business!");
-      this.printer.println(`Served by: ${data.user}`);
-      this.printer.newLine();
-      this.printer.println("TEVTA - Creative Hands");
-      this.printer.newLine();
-      this.printer.newLine();
-
-      this.printer.cut();
-
-      await this.printer.execute();
-      console.log("Receipt printed successfully");
-      return true;
-    } catch (error) {
-      console.error("Print failed:", error);
-      throw error;
+    if (data.taxPercentage > 0) {
+      receipt += this.formatLine(
+        `Tax (${data.taxPercentage}%):`,
+        `Rs ${data.tax.toFixed(2)}`
+      );
     }
+
+    if (data.discountAmount > 0) {
+      receipt += this.formatLine(
+        "Discount:",
+        `-Rs ${data.discountAmount.toFixed(2)}`
+      );
+    }
+
+    receipt += this.line();
+    receipt += this.CMD_BOLD_ON;
+    receipt += this.CMD_SIZE_DOUBLE;
+    receipt += this.formatLine("TOTAL:", `Rs ${data.total.toFixed(2)}`);
+    receipt += this.CMD_SIZE_NORMAL;
+    receipt += this.CMD_BOLD_OFF;
+    receipt += this.formatLine("Paid:", `Rs ${data.paid.toFixed(2)}`);
+
+    if (data.change > 0) {
+      receipt += this.CMD_BOLD_ON;
+      receipt += this.formatLine("Change:", `Rs ${data.change.toFixed(2)}`);
+      receipt += this.CMD_BOLD_OFF;
+    }
+
+    receipt += this.line();
+    receipt += this.CMD_ALIGN_CENTER;
+    receipt += "Thank you for your business!" + this.CMD_NEWLINE;
+    receipt += `Served by: ${data.user}` + this.CMD_NEWLINE;
+    receipt += this.CMD_NEWLINE;
+    receipt += "TEVTA - Creative Hands" + this.CMD_NEWLINE;
+    receipt += this.CMD_NEWLINE;
+    receipt += this.CMD_NEWLINE;
+    receipt += this.CMD_CUT;
+
+    return receipt;
+  }
+
+  private line(): string {
+    return (
+      "------------------------------------------------" + this.CMD_NEWLINE
+    );
+  }
+
+  private pad(length: number): string {
+    return " ".repeat(Math.max(0, length));
+  }
+
+  private formatLine(left: string, right: string): string {
+    const totalWidth = 48;
+    const padding = totalWidth - left.length - right.length;
+    return left + this.pad(padding) + right + this.CMD_NEWLINE;
+  }
+
+  async printReceipt(data: PrintReceiptData): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      try {
+        const receiptData = this.buildReceiptData(data);
+
+        printer.printDirect({
+          data: receiptData,
+          printer: this.printerName,
+          type: "RAW",
+          success: (jobID) => {
+            console.log("Print job sent successfully. Job ID:", jobID);
+            resolve(true);
+          },
+          error: (err) => {
+            console.error("Print error:", err);
+            reject(new Error(String(err)));
+          },
+        });
+      } catch (error) {
+        console.error("Failed to print receipt:", error);
+        reject(error);
+      }
+    });
   }
 
   async testPrint(): Promise<boolean> {
-    try {
-      if (!this.printer) {
-        this.initialize();
+    return new Promise((resolve, reject) => {
+      try {
+        let testData = this.CMD_INIT;
+        testData += this.CMD_ALIGN_CENTER;
+        testData += this.CMD_SIZE_DOUBLE;
+        testData += this.CMD_BOLD_ON;
+        testData += "TEST PRINT" + this.CMD_NEWLINE;
+        testData += this.CMD_BOLD_OFF;
+        testData += this.CMD_SIZE_NORMAL;
+        testData += "POS-80 Thermal Printer" + this.CMD_NEWLINE;
+        testData += "Printer is working!" + this.CMD_NEWLINE;
+        testData += this.CMD_NEWLINE;
+        testData += new Date().toLocaleString() + this.CMD_NEWLINE;
+        testData += this.line();
+        testData += this.CMD_NEWLINE;
+        testData += this.CMD_CUT;
+
+        printer.printDirect({
+          data: testData,
+          printer: this.printerName,
+          type: "RAW",
+          success: (jobID) => {
+            console.log("Test print successful. Job ID:", jobID);
+            resolve(true);
+          },
+          error: (err) => {
+            console.error("Test print error:", err);
+            reject(new Error(String(err)));
+          },
+        });
+      } catch (error) {
+        console.error("Test print failed:", error);
+        reject(error);
       }
+    });
+  }
 
-      if (!this.printer) {
-        throw new Error("Printer not initialized");
-      }
-
-      this.printer.clear();
-      this.printer.alignCenter();
-      this.printer.bold(true);
-      this.printer.setTextSize(1, 1);
-      this.printer.println("TEST PRINT");
-      this.printer.bold(false);
-      this.printer.setTextNormal();
-      this.printer.println("POS-80 Thermal Printer");
-      this.printer.println("Printer is working correctly!");
-      this.printer.newLine();
-      this.printer.println(new Date().toLocaleString());
-      this.printer.drawLine();
-      this.printer.newLine();
-      this.printer.cut();
-
-      await this.printer.execute();
-      return true;
-    } catch (error) {
-      console.error("Test print failed:", error);
-      throw error;
-    }
+  listPrinters() {
+    return printer.getPrinters();
   }
 }
 
 export const printerService = new PrinterService();
-
-export function setupPrinterIPC() {
-  ipcMain.handle("printer:initialize", async () => {
-    try {
-      return printerService.initialize();
-    } catch (error: any) {
-      console.error("Printer initialization error:", error);
-      return false;
-    }
-  });
-
-  ipcMain.handle("printer:test", async () => {
-    try {
-      await printerService.testPrint();
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("printer:print-receipt", async (_, data: PrintReceiptData) => {
-    try {
-      await printerService.printReceipt(data);
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  });
-}

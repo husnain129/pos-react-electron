@@ -18,7 +18,7 @@ import type { Product } from "../types";
 const POSPage: React.FC = () => {
   const { data: products = [], isLoading: loading } = useProducts();
   const createTransaction = useCreateTransaction();
-  const { printInvoice, testPrint, isPrinting } = usePrinter();
+  const { printReceipt, testPrint, isPrinting, listPrinters } = usePrinter();
   const [searchTerm, setSearchTerm] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
@@ -99,8 +99,8 @@ const POSPage: React.FC = () => {
 
   // Check available printers
   const checkPrinters = async () => {
-    if (window.ipcRenderer) {
-      const result = await window.ipcRenderer.invoke("print:listPrinters");
+    try {
+      const result = await listPrinters();
       if (result.success) {
         const printerList = result.printers
           .map((p: any) => `${p.name}${p.isDefault ? " (Default)" : ""}`)
@@ -115,8 +115,8 @@ const POSPage: React.FC = () => {
       } else {
         Swal.fire("Error", "Failed to list printers", "error");
       }
-    } else {
-      Swal.fire("Info", "Printer detection only works in Electron app", "info");
+    } catch (error) {
+      Swal.fire("Error", "Failed to list printers", "error");
     }
   };
 
@@ -198,7 +198,7 @@ const POSPage: React.FC = () => {
 
       // Auto-print immediately after completing sale
       try {
-        const result = await printInvoice(invoiceData);
+        const result = await printReceipt(invoiceData);
         if (result.success) {
           Swal.fire({
             icon: "success",
@@ -347,7 +347,7 @@ const POSPage: React.FC = () => {
             <Button
               onClick={async () => {
                 try {
-                  const result = await printInvoice(invoiceData);
+                  const result = await printReceipt(invoiceData);
                   if (result.success) {
                     Swal.fire({
                       icon: "success",

@@ -26,10 +26,12 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
 });
 
 // --------- Expose Printer API ---------
-contextBridge.exposeInMainWorld("electron", {
-  printer: {
-    initialize: () => ipcRenderer.invoke("printer:initialize"),
-    test: () => ipcRenderer.invoke("printer:test"),
-    printInvoice: (data: any) => ipcRenderer.invoke("print:thermal", data),
-  },
+contextBridge.exposeInMainWorld("printer", {
+  listPrinters: () => ipcRenderer.invoke("printer:list"),
+  initialize: () => ipcRenderer.invoke("printer:initialize"),
+  test: () => ipcRenderer.invoke("printer:test"),
+  printReceipt: (data: any) => ipcRenderer.invoke("print:thermal", data),
+  printThermalHTML: (data: any) =>
+    ipcRenderer.invoke("print:thermal-html", data),
+  printSilent: () => ipcRenderer.invoke("printer:silent"),
 });

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dbOperations } from "./database";
-import { printerService, setupPrinterIPC } from "./printerService";
+import { printerService } from "./printerService";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -223,14 +223,14 @@ function setupIPCHandlers() {
     }
   });
 
+  // ===== PRINTER HANDLERS =====
   // Printer initialize handler
   ipcMain.handle("printer:initialize", async () => {
     try {
-      // Check if printer service is available
-      return { success: true };
-    } catch (error) {
+      return printerService.initialize();
+    } catch (error: any) {
       console.error("Printer initialization error:", error);
-      return { success: false, error: String(error) };
+      return false;
     }
   });
 
@@ -245,8 +245,28 @@ function setupIPCHandlers() {
     }
   });
 
-  // Thermal printer - Using node-thermal-printer (RECOMMENDED)
-  // This is the primary method that should be used
+  // Print receipt using ESC/POS
+  ipcMain.handle("printer:print-receipt", async (_event, receiptData: any) => {
+    try {
+      await printerService.printReceipt(receiptData);
+      return { success: true };
+    } catch (error: any) {
+      console.error("Print receipt error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // List all system printers
+  ipcMain.handle("printer:list", async () => {
+    try {
+      const printers = printerService.listPrinters();
+      return { success: true, printers };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Main thermal printing handler using ESC/POS
   ipcMain.handle("print:thermal", async (_event, receiptData: any) => {
     try {
       await printerService.printReceipt(receiptData);
@@ -257,7 +277,7 @@ function setupIPCHandlers() {
     }
   });
 
-  // Fallback HTML-based thermal printing (if node-thermal-printer fails)
+  // Fallback HTML-based thermal printing
   ipcMain.handle("print:thermal-html", async (_event, receiptData: any) => {
     if (!win) {
       return { success: false, error: "No window available" };
@@ -462,12 +482,11 @@ app.on("activate", () => {
 });
 
 app.whenReady().then(() => {
+  // Setup all IPC handlers (includes printer handlers now)
+  setupIPCHandlers();
+
   // Initialize printer service
   printerService.initialize();
-
-  // Setup all IPC handlers
-  setupIPCHandlers();
-  setupPrinterIPC();
 
   createWindow();
 });

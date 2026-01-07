@@ -1,20 +1,28 @@
 import { useCallback, useState } from "react";
 
+// Add the type declaration directly in this file
 declare global {
   interface Window {
-    electron: {
-      printer: {
-        initialize: () => Promise<boolean>;
-        test: () => Promise<{ success: boolean; error?: string }>;
-        printInvoice: (
-          data: PrintInvoiceData
-        ) => Promise<{ success: boolean; error?: string }>;
-      };
+    printer: {
+      listPrinters: () => Promise<{
+        success: boolean;
+        printers: any[];
+        error?: string;
+      }>;
+      initialize: () => Promise<boolean>;
+      test: () => Promise<{ success: boolean; error?: string }>;
+      printReceipt: (
+        receiptData: PrintReceiptData
+      ) => Promise<{ success: boolean; error?: string }>;
+      printThermalHTML: (
+        receiptData: PrintReceiptData
+      ) => Promise<{ success: boolean; error?: string }>;
+      printSilent: () => Promise<{ success: boolean; error?: string }>;
     };
   }
 }
 
-interface PrintInvoiceData {
+interface PrintReceiptData {
   invoiceNo: string;
   date: string;
   customer_name: string;
@@ -32,6 +40,7 @@ interface PrintInvoiceData {
   total: number;
   paid: number;
   change: number;
+  user: string;
 }
 
 export const usePrinter = () => {
@@ -40,7 +49,7 @@ export const usePrinter = () => {
 
   const initialize = useCallback(async () => {
     try {
-      const result = await window.electron.printer.initialize();
+      const result = await window.printer.initialize();
       setIsInitialized(result);
       return result;
     } catch (error) {
@@ -52,7 +61,7 @@ export const usePrinter = () => {
   const testPrint = useCallback(async () => {
     setIsPrinting(true);
     try {
-      const result = await window.electron.printer.test();
+      const result = await window.printer.test();
       if (!result.success) {
         throw new Error(result.error || "Print failed");
       }
@@ -65,19 +74,45 @@ export const usePrinter = () => {
     }
   }, []);
 
-  const printInvoice = useCallback(async (data: PrintInvoiceData) => {
+  const printReceipt = useCallback(async (data: PrintReceiptData) => {
     setIsPrinting(true);
     try {
-      const result = await window.electron.printer.printInvoice(data);
+      const result = await window.printer.printReceipt(data);
       if (!result.success) {
         throw new Error(result.error || "Print failed");
       }
       return result;
     } catch (error) {
-      console.error("Invoice print failed:", error);
+      console.error("Receipt print failed:", error);
       throw error;
     } finally {
       setIsPrinting(false);
+    }
+  }, []);
+
+  const printReceiptHTML = useCallback(async (data: PrintReceiptData) => {
+    setIsPrinting(true);
+    try {
+      const result = await window.printer.printThermalHTML(data);
+      if (!result.success) {
+        throw new Error(result.error || "Print failed");
+      }
+      return result;
+    } catch (error) {
+      console.error("HTML receipt print failed:", error);
+      throw error;
+    } finally {
+      setIsPrinting(false);
+    }
+  }, []);
+
+  const listPrinters = useCallback(async () => {
+    try {
+      const result = await window.printer.listPrinters();
+      return result;
+    } catch (error) {
+      console.error("Failed to list printers:", error);
+      throw error;
     }
   }, []);
 
@@ -86,6 +121,10 @@ export const usePrinter = () => {
     isPrinting,
     initialize,
     testPrint,
-    printInvoice,
+    printReceipt,
+    printReceiptHTML,
+    listPrinters,
   };
 };
+
+export type { PrintReceiptData };
