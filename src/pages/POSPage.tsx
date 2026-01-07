@@ -13,7 +13,7 @@ import { usePrinter } from "../hooks/usePrinter";
 import { useCreateTransaction, useProducts } from "../hooks/useQueries";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
-import type { Product } from "../types";
+import type { CartItem, Product } from "../types";
 
 const POSPage: React.FC = () => {
   const { data: products = [], isLoading: loading } = useProducts();
@@ -186,6 +186,9 @@ const POSPage: React.FC = () => {
       // Calculate change for invoice (only for cash payments)
       const actualChange = paymentMethod === "Card" ? 0 : changeAmount;
 
+      // Get transaction ID from result
+      const transactionId = result?.data?.id || result?.id || Date.now();
+
       // Prepare invoice data and print instantly
       const invoiceData = {
         ...transactionData,
@@ -200,7 +203,7 @@ const POSPage: React.FC = () => {
           total: item.cartTotal,
         })),
         date: new Date().toLocaleString(),
-        invoiceNo: `INV-${Date.now()}`,
+        invoiceNo: `INV-${transactionId}`,
         user: user?.fullname || user?.username || "Staff",
       };
 
@@ -230,6 +233,73 @@ const POSPage: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleAddToCart = (product: Product) => {
+    // Check if product is out of stock
+    if (product.quantity <= 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Out of Stock",
+        text: `${product.name} is currently out of stock!`,
+        timer: 2000,
+        showConfirmButton: false,
+        position: "top-end",
+        toast: true,
+      });
+      return;
+    }
+
+    // Check if adding one more would exceed available stock
+    const cartItem = items.find((item) => item._id === product._id);
+    const currentCartQuantity = cartItem ? cartItem.cartQuantity : 0;
+
+    if (currentCartQuantity >= product.quantity) {
+      Swal.fire({
+        icon: "warning",
+        title: "Insufficient Stock",
+        text: `Only ${product.quantity} units available for ${product.name}`,
+        timer: 2000,
+        showConfirmButton: false,
+        position: "top-end",
+        toast: true,
+      });
+      return;
+    }
+
+    // Add to cart
+    addItem(product);
+    Swal.fire({
+      icon: "success",
+      title: "Added to Cart",
+      text: `${product.name} added successfully!`,
+      timer: 1000,
+      showConfirmButton: false,
+      position: "top-end",
+      toast: true,
+    });
+  };
+
+  const handleIncreaseQuantity = (cartItem: CartItem) => {
+    // Find the original product to check available stock
+    const product = products.find((p: Product) => p._id === cartItem._id);
+
+    if (!product) return;
+
+    if (cartItem.cartQuantity >= product.quantity) {
+      Swal.fire({
+        icon: "warning",
+        title: "Insufficient Stock",
+        text: `Only ${product.quantity} units available for ${product.name}`,
+        timer: 2000,
+        showConfirmButton: false,
+        position: "top-end",
+        toast: true,
+      });
+      return;
+    }
+
+    updateQuantity(cartItem._id, cartItem.cartQuantity + 1);
   };
 
   const filteredProducts = products
@@ -413,7 +483,7 @@ const POSPage: React.FC = () => {
                     <Card
                       key={product._id}
                       className="cursor-pointer hover:shadow-lg transition-shadow"
-                      onClick={() => addItem(product)}
+                      onClick={() => handleAddToCart(product)}
                     >
                       <CardContent className="p-4">
                         <div className="space-y-2">
@@ -497,9 +567,7 @@ const POSPage: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() =>
-                                updateQuantity(item._id, item.cartQuantity + 1)
-                              }
+                              onClick={() => handleIncreaseQuantity(item)}
                             >
                               <Plus className="w-3 h-3" />
                             </Button>

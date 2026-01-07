@@ -69,12 +69,21 @@ router.get("/products", async (_req: Request, res: Response) => {
 
 router.post("/product", async (req: Request, res: Response) => {
   try {
-    const categoryResult = await db.query(
-      "SELECT name FROM categories WHERE id = $1",
-      [parseInt(req.body.category)]
-    );
-    const categoryName =
-      categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+    let categoryName = null;
+
+    // Only query category if category ID is provided and valid
+    if (
+      req.body.category &&
+      req.body.category !== "" &&
+      req.body.category !== "0"
+    ) {
+      const categoryResult = await db.query(
+        "SELECT name FROM categories WHERE id = $1",
+        [parseInt(req.body.category)]
+      );
+      categoryName =
+        categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+    }
 
     if (req.body.id === "" || !req.body.id) {
       // Fetch institute details if institute_id is provided

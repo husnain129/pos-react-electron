@@ -200,12 +200,21 @@ export const dbOperations = {
     },
 
     create: async (productData: any) => {
-      const categoryResult = await query(
-        "SELECT name FROM categories WHERE id = $1",
-        [parseInt(productData.category)]
-      );
-      const categoryName =
-        categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+      let categoryName = null;
+
+      // Only query category if category ID is provided and valid
+      if (
+        productData.category &&
+        productData.category !== "" &&
+        productData.category !== "0"
+      ) {
+        const categoryResult = await query(
+          "SELECT name FROM categories WHERE id = $1",
+          [parseInt(productData.category)]
+        );
+        categoryName =
+          categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+      }
 
       let instituteDetails = { zone: "", district: "", institute_name: "" };
       if (productData.institute_id) {
@@ -226,7 +235,11 @@ export const dbOperations = {
           productData.name,
           parseFloat(productData.price),
           parseFloat(productData.cost_price || 0),
-          parseInt(productData.category),
+          productData.category &&
+          productData.category !== "" &&
+          productData.category !== "0"
+            ? parseInt(productData.category)
+            : null,
           categoryName,
           parseInt(productData.quantity || 0),
           productData.stock || "",
@@ -248,12 +261,21 @@ export const dbOperations = {
     },
 
     update: async (productData: any) => {
-      const categoryResult = await query(
-        "SELECT name FROM categories WHERE id = $1",
-        [parseInt(productData.category)]
-      );
-      const categoryName =
-        categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+      let categoryName = null;
+
+      // Only query category if category ID is provided and valid
+      if (
+        productData.category &&
+        productData.category !== "" &&
+        productData.category !== "0"
+      ) {
+        const categoryResult = await query(
+          "SELECT name FROM categories WHERE id = $1",
+          [parseInt(productData.category)]
+        );
+        categoryName =
+          categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+      }
 
       let instituteDetails = { zone: "", district: "", institute_name: "" };
       if (productData.institute_id) {
@@ -278,11 +300,19 @@ export const dbOperations = {
           productData.name,
           parseFloat(productData.price),
           parseFloat(productData.cost_price || 0),
-          parseInt(productData.category),
+          productData.category &&
+          productData.category !== "" &&
+          productData.category !== "0"
+            ? parseInt(productData.category)
+            : null,
           categoryName,
           parseInt(productData.quantity || 0),
           productData.stock || "",
-          productData.institute_id ? parseInt(productData.institute_id) : null,
+          productData.institute_id &&
+          productData.institute_id !== "" &&
+          productData.institute_id !== "0"
+            ? parseInt(productData.institute_id)
+            : null,
           instituteDetails.zone,
           instituteDetails.district,
           instituteDetails.institute_name,
@@ -522,11 +552,15 @@ export const dbOperations = {
         ]
       );
 
-      // Decrement inventory for completed transactions
-      if (transactionData.status === 1) {
+      // Decrement inventory for completed/paid transactions
+      if (
+        transactionData.payment_status === "Paid" ||
+        transactionData.payment_status === "paid" ||
+        transactionData.status === 1
+      ) {
         for (const item of transactionData.items) {
           await dbOperations.inventory.decrementInventory(
-            item.product_id,
+            item.id || item.product_id,
             item.quantity
           );
         }

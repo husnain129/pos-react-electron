@@ -131,11 +131,18 @@ router.post("/new", async (req: Request, res: Response) => {
         newTransaction.user_id || null,
       ]
     );
-    res.json({ id: result.rows[0].id });
 
-    if (newTransaction.paid >= newTransaction.total) {
+    const transactionId = result.rows[0].id;
+
+    // Decrement inventory if payment is successful
+    if (
+      newTransaction.payment_status === "Paid" ||
+      (newTransaction.paid && newTransaction.paid >= newTransaction.total)
+    ) {
       await decrementInventory(newTransaction.items);
     }
+
+    res.json({ id: transactionId });
   } catch (err: any) {
     res.status(500).send(err.message);
   }
