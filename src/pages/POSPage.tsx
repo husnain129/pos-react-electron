@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "../components/card";
 import { Input } from "../components/input";
 import { ScrollArea } from "../components/scroll-area";
 import { Separator } from "../components/separator";
+import { usePrinter } from "../hooks/usePrinter";
 import { useCreateTransaction, useProducts } from "../hooks/useQueries";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
@@ -17,6 +18,7 @@ import type { Product } from "../types";
 const POSPage: React.FC = () => {
   const { data: products = [], isLoading: loading } = useProducts();
   const createTransaction = useCreateTransaction();
+  const { printInvoice, testPrint, isPrinting } = usePrinter();
   const [searchTerm, setSearchTerm] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
@@ -195,12 +197,8 @@ const POSPage: React.FC = () => {
       setPaymentMethod("Cash");
 
       // Auto-print immediately after completing sale
-      if (window.ipcRenderer) {
-        // Use thermal printer in Electron
-        const result = await window.ipcRenderer.invoke(
-          "print:thermal",
-          invoiceData
-        );
+      try {
+        const result = await printInvoice(invoiceData);
         if (result.success) {
           Swal.fire({
             icon: "success",
@@ -209,19 +207,15 @@ const POSPage: React.FC = () => {
             timer: 1500,
             showConfirmButton: false,
           });
-        } else {
-          Swal.fire({
-            icon: "warning",
-            title: "Print Failed",
-            text: result.error || "Sale completed but failed to print receipt",
-            timer: 3000,
-          });
-          // Show invoice for manual printing
-          setInvoiceData(invoiceData);
-          setShowInvoice(true);
         }
-      } else {
-        // For web version, show invoice with manual print
+      } catch (error: any) {
+        Swal.fire({
+          icon: "warning",
+          title: "Print Failed",
+          text: error.message || "Sale completed but failed to print receipt",
+          timer: 3000,
+        });
+        // Show invoice for manual printing
         setInvoiceData(invoiceData);
         setShowInvoice(true);
       }
@@ -352,12 +346,8 @@ const POSPage: React.FC = () => {
           <div className="flex gap-4 mt-6 print:hidden">
             <Button
               onClick={async () => {
-                if (window.ipcRenderer) {
-                  // Use thermal printer in Electron
-                  const result = await window.ipcRenderer.invoke(
-                    "print:thermal",
-                    invoiceData
-                  );
+                try {
+                  const result = await printInvoice(invoiceData);
                   if (result.success) {
                     Swal.fire({
                       icon: "success",
@@ -368,21 +358,19 @@ const POSPage: React.FC = () => {
                     });
                     setShowInvoice(false);
                     setInvoiceData(null);
-                  } else {
-                    Swal.fire({
-                      icon: "error",
-                      title: "Print Failed",
-                      text: result.error || "Failed to print receipt",
-                    });
                   }
-                } else {
-                  // Fallback to browser print
-                  window.print();
+                } catch (error: any) {
+                  Swal.fire({
+                    icon: "error",
+                    title: "Print Failed",
+                    text: error.message || "Failed to print receipt",
+                  });
                 }
               }}
+              disabled={isPrinting}
               className="flex-1 bg-[#17411c] hover:bg-[#1a4f22]"
             >
-              Print Receipt
+              {isPrinting ? "Printing..." : "Print Receipt"}
             </Button>
             <Button
               onClick={() => {
@@ -721,6 +709,30 @@ const POSPage: React.FC = () => {
                   disabled={items.length === 0 || isProcessing}
                 >
                   Clear Cart
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      await testPrint();
+                      Swal.fire({
+                        icon: "success",
+                        title: "Success!",
+                        text: "Test print completed successfully",
+                        timer: 1500,
+                      });
+                    } catch (error: any) {
+                      Swal.fire({
+                        icon: "error",
+                        title: "Test Print Failed",
+                        text: error.message || "Failed to print test page",
+                      });
+                    }
+                  }}
+                  disabled={isPrinting}
+                >
+                  {isPrinting ? "Printing..." : "Test Print"}
                 </Button>
                 <Button
                   variant="outline"
