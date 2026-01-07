@@ -113,6 +113,12 @@ const POSPage: React.FC = () => {
           timer: 1200,
           showConfirmButton: false,
         });
+
+        // Auto-close invoice after successful print (3 seconds delay)
+        setTimeout(() => {
+          setShowInvoice(false);
+          setInvoiceData(null);
+        }, 3000);
       } catch (error: any) {
         Swal.fire({
           icon: "error",
