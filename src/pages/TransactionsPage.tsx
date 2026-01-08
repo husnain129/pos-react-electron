@@ -1,6 +1,7 @@
-import { Eye, Search } from "lucide-react";
+import { Download, Eye, Search } from "lucide-react";
 import moment from "moment";
 import React, { useState } from "react";
+import Swal from "sweetalert2";
 import logo from "../assets/logo.png";
 import qrCode from "../assets/qr.jpeg";
 import { Badge } from "../components/badge";
@@ -18,6 +19,7 @@ import {
 } from "../components/table";
 import { useTransactionsByDate } from "../hooks/useQueries";
 import type { Transaction } from "../types";
+import { generateExtensiveTransactionReport } from "../utils/reportGenerator";
 
 const TransactionsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -59,6 +61,63 @@ const TransactionsPage: React.FC = () => {
     0
   );
 
+  const handleDownloadReport = () => {
+    try {
+      console.log("Starting report generation...");
+      console.log("Transactions count:", transactions.length);
+      console.log("Date range:", dateFilter.start, "to", dateFilter.end);
+
+      // Show loading toast
+      Swal.fire({
+        title: "Generating Report...",
+        text: "Please wait",
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // Use setTimeout to allow UI to update
+      setTimeout(() => {
+        try {
+          console.log("About to call generateExtensiveTransactionReport...");
+
+          generateExtensiveTransactionReport({
+            transactions,
+            startDate: dateFilter.start,
+            endDate: dateFilter.end,
+          });
+
+          console.log("Report generation completed successfully!");
+
+          Swal.fire({
+            icon: "success",
+            title: "Report Downloaded!",
+            text: "Check your downloads folder for the Excel file.",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } catch (error) {
+          console.error("Error generating report:", error);
+          console.error(
+            "Error stack:",
+            error instanceof Error ? error.stack : "No stack trace"
+          );
+          Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: `Failed to generate report: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          });
+        }
+      }, 100);
+    } catch (error) {
+      console.error("Error in handleDownloadReport:", error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {loading ? (
@@ -92,6 +151,14 @@ const TransactionsPage: React.FC = () => {
                   }
                 />
               </div>
+              <Button
+                onClick={handleDownloadReport}
+                className="bg-[#17411c] hover:bg-[#1a4f22] flex items-center gap-2"
+                disabled={transactions.length === 0}
+              >
+                <Download className="w-4 h-4" />
+                Download Report
+              </Button>
             </div>
           </div>
 
