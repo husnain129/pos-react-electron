@@ -66,8 +66,25 @@ router.get("/customer-orders", async (_req: Request, res: Response) => {
 
 router.get("/by-date", async (req: Request, res: Response) => {
   try {
-    const startDate = new Date(req.query.start as string);
-    const endDate = new Date(req.query.end as string);
+    const startDateStr = req.query.start as string;
+    const endDateStr = req.query.end as string;
+    
+    if (!startDateStr || !endDateStr) {
+      return res.status(400).send({ error: "Start date and end date are required" });
+    }
+    
+    // Parse and validate dates
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).send({ error: "Invalid date format" });
+    }
+    
+    // Set time to start and end of day
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    
     let query = `
       SELECT 
         t.id as _id, 
@@ -92,9 +109,9 @@ router.get("/by-date", async (req: Request, res: Response) => {
       LEFT JOIN users u ON t.user_id = u.id
       WHERE t.created_at >= $1 AND t.created_at <= $2 AND t.status = $3`;
     const params: any[] = [
-      startDate,
-      endDate,
-      parseInt(req.query.status as string),
+      startDate.toISOString(),
+      endDate.toISOString(),
+      parseInt(req.query.status as string) || 1,
     ];
 
     if (req.query.user && req.query.user != "0") {
@@ -107,6 +124,7 @@ router.get("/by-date", async (req: Request, res: Response) => {
     const result = await db.query(query, params);
     res.send(result.rows);
   } catch (err: any) {
+    console.error("Error in /by-date endpoint:", err);
     res.status(500).send(err.message);
   }
 });
