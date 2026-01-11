@@ -545,7 +545,10 @@ export const dbOperations = {
   transactions: {
     getAll: async () => {
       const result = await query(
-        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, 
+         COALESCE(u.name, u.fullname, u.username, 'Unknown') as user,
+         COALESCE(u.fullname, u.name, u.username, 'Unknown') as user_fullname,
+         u.role as user_role
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          ORDER BY t.id DESC`,
@@ -556,7 +559,10 @@ export const dbOperations = {
 
     getById: async (transactionId: number) => {
       const result = await query(
-        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, 
+         COALESCE(u.name, u.fullname, u.username, 'Unknown') as user,
+         COALESCE(u.fullname, u.name, u.username, 'Unknown') as user_fullname,
+         u.role as user_role
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.id = $1`,
@@ -570,7 +576,10 @@ export const dbOperations = {
     },
 
     getByDate: async (start: string, end: string, status: number, user?: number) => {
-      let queryText = `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
+      let queryText = `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, 
+                       COALESCE(u.name, u.fullname, u.username, 'Unknown') as user,
+                       COALESCE(u.fullname, u.name, u.username, 'Unknown') as user_fullname,
+                       u.role as user_role
                        FROM transactions t 
                        LEFT JOIN users u ON t.user_id = u.id 
                        WHERE t.created_at BETWEEN $1 AND $2 AND t.status = $3`;
@@ -589,7 +598,10 @@ export const dbOperations = {
 
     getOnHold: async () => {
       const result = await query(
-        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, 
+         COALESCE(u.name, u.fullname, u.username, 'Unknown') as user,
+         COALESCE(u.fullname, u.name, u.username, 'Unknown') as user_fullname,
+         u.role as user_role
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.status = 0 
@@ -601,7 +613,10 @@ export const dbOperations = {
 
     getCustomerOrders: async () => {
       const result = await query(
-        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
+        `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, 
+         COALESCE(u.name, u.fullname, u.username, 'Unknown') as user,
+         COALESCE(u.fullname, u.name, u.username, 'Unknown') as user_fullname,
+         u.role as user_role
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.status = 2 

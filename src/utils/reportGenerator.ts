@@ -184,18 +184,24 @@ function getPaymentMethodSummary(transactions: Transaction[]): any[][] {
 
 // Generate Transactions Sheet
 function generateTransactionsSheet(transactions: Transaction[]) {
-  return transactions.map((t) => ({
-    "Invoice #": t._id,
-    Date: moment(t.date).format("MMM DD, YYYY h:mm A"),
-    Customer: t.customer_name || "Walk-in",
-    "Total (Rs)": Number(t.total || 0).toFixed(2),
-    "Discount (Rs)": Number(t.discount || 0).toFixed(2),
-    "Tax (Rs)": Number(t.tax || 0).toFixed(2),
-    "Payment Method": t.payment_method || "Cash",
-    "Payment Status": t.payment_status || "Paid",
-    Cashier: t.user,
-    "Items Count": (t.items || []).length,
-  }));
+  return transactions.map((t) => {
+    const fullname = (t as any).user_fullname || t.user || "Unknown";
+    const role = (t as any).user_role || "";
+    const cashier = role ? `${fullname} (${role})` : fullname;
+    
+    return {
+      "Invoice #": t._id,
+      Date: moment(t.date).format("MMM DD, YYYY h:mm A"),
+      Customer: t.customer_name || "Walk-in",
+      "Total (Rs)": Number(t.total || 0).toFixed(2),
+      "Discount (Rs)": Number(t.discount || 0).toFixed(2),
+      "Tax (Rs)": Number(t.tax || 0).toFixed(2),
+      "Payment Method": t.payment_method || "Cash",
+      "Payment Status": t.payment_status || "Paid",
+      Cashier: cashier,
+      "Items Count": (t.items || []).length,
+    };
+  });
 }
 
 // Generate Product-wise Report
@@ -450,7 +456,10 @@ function generateCashierReport(transactions: Transaction[]) {
   } = {};
 
   transactions.forEach((t) => {
-    const cashier = t.user || "Unknown";
+    // Format cashier name as "Fullname (Role)" or fallback to user name
+    const fullname = (t as any).user_fullname || t.user || "Unknown";
+    const role = (t as any).user_role || "";
+    const cashier = role ? `${fullname} (${role})` : fullname;
 
     if (!cashierStats[cashier]) {
       cashierStats[cashier] = {

@@ -89,6 +89,8 @@ export interface Transaction {
   user_id?: number;
   till: number;
   user: string;
+  user_fullname?: string;
+  user_role?: string;
   date: string;
 }
 
