@@ -20,6 +20,7 @@ const POSPage: React.FC = () => {
   const createTransaction = useCreateTransaction();
   const { printReceipt } = usePrinter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,6 +30,7 @@ const POSPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [barcodeInput, setBarcodeInput] = useState("");
   const barcodeInputRef = React.useRef<HTMLInputElement>(null);
+  const searchDropdownRef = React.useRef<HTMLDivElement>(null);
   const hasAutoPrintedRef = React.useRef(false);
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } =
     useCartStore();
@@ -48,6 +50,24 @@ const POSPage: React.FC = () => {
       barcodeInputRef.current.focus();
     }
   }, [showInvoice, items.length]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchDropdownRef.current &&
+        !searchDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowSearchDropdown(false);
+      }
+    };
+
+    if (showSearchDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showSearchDropdown]);
 
   // Auto-add product when barcode is entered (without pressing Enter)
   React.useEffect(() => {
@@ -193,7 +213,7 @@ const POSPage: React.FC = () => {
       const actualChange = paymentMethod === "Card" ? 0 : changeAmount;
 
       // Get transaction ID from result
-      const transactionId = result?.data?.id || result?.id || Date.now();
+      const transactionId = result?.data?._id || result?.data?.id || Date.now();
 
       // Prepare invoice data and print instantly
       const invoiceData = {
@@ -311,13 +331,12 @@ const POSPage: React.FC = () => {
   const filteredProducts = products
     .filter(
       (p: Product) =>
-        (searchTerm &&
-          (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p._id.toString().includes(searchTerm))) ||
-        (barcodeInput && p.barcode && p.barcode.includes(barcodeInput)) ||
-        (!searchTerm && !barcodeInput)
+        searchTerm &&
+        (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p._id.toString().includes(searchTerm) ||
+          (p.barcode && p.barcode.includes(searchTerm)))
     )
-    .sort((a: Product, b: Product) => Number(a._id) - Number(b._id));
+    .slice(0, 8); // Limit to 8 results in dropdown
 
   if (showInvoice && invoiceData) {
     return (
@@ -441,9 +460,9 @@ const POSPage: React.FC = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="flex flex-col h-full gap-4">
       {loading ? (
-        <div className="lg:col-span-3 flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#17411c] mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading products...</p>
@@ -451,98 +470,124 @@ const POSPage: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Products List */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Products</h2>
-
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search products by name or ID..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+          {/* Top Control Panel */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex gap-4 items-end">
+                <div className="flex-1 space-y-2">
+                  <label className="text-sm font-medium">Scan Barcode</label>
+                  <div className="relative">
+                    <ShoppingCart className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      ref={barcodeInputRef}
+                      placeholder="Scan or enter barcode..."
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      onKeyDown={handleBarcodeScan}
+                      className="pl-10 font-mono text-lg"
+                      autoComplete="off"
+                      autoFocus
+                    />
+                  </div>
                 </div>
 
-                <div className="relative">
-                  <ShoppingCart className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    ref={barcodeInputRef}
-                    placeholder="Scan or enter barcode..."
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={handleBarcodeScan}
-                    className="pl-10 font-mono"
-                    autoComplete="off"
-                    autoFocus
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px]">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {filteredProducts.map((product: Product) => (
-                    <Card
-                      key={product._id}
-                      className="cursor-pointer hover:shadow-lg transition-shadow"
-                      onClick={() => handleAddToCart(product)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">
+                <div className="relative flex-1" ref={searchDropdownRef}>
+                  <label className="text-sm font-medium block mb-2">
+                    Search & Add Product
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
+                    <Input
+                      placeholder="Search by product name, ID, or barcode..."
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setShowSearchDropdown(e.target.value.length > 0);
+                      }}
+                      onFocus={() =>
+                        searchTerm.length > 0 && setShowSearchDropdown(true)
+                      }
+                      className="pl-10"
+                    />
+                  </div>
+
+                  {/* Search Dropdown */}
+                  {showSearchDropdown && filteredProducts.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                      {filteredProducts.map((product: Product) => (
+                        <div
+                          key={product._id}
+                          onClick={() => {
+                            handleAddToCart(product);
+                            setSearchTerm("");
+                            setShowSearchDropdown(false);
+                          }}
+                          className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              {product.name}
+                            </p>
+                            <p className="text-xs text-gray-500">
                               ID: {product._id}
                             </p>
-                            <h3 className="font-semibold line-clamp-2">
-                              {product.name}
-                            </h3>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-lg font-bold text-green-600">
+                          <div className="text-right ml-4">
+                            <p className="font-semibold text-green-600 text-sm">
                               Rs {Number(product.price || 0).toFixed(2)}
-                            </span>
+                            </p>
                             <Badge
                               variant={
                                 product.quantity > 0 ? "default" : "destructive"
                               }
+                              className="text-xs"
                             >
-                              {product.quantity}
+                              {product.quantity} left
                             </Badge>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      ))}
+                    </div>
+                  )}
+
+                  {showSearchDropdown &&
+                    searchTerm &&
+                    filteredProducts.length === 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 p-4 text-center">
+                        <p className="text-sm text-gray-500">
+                          No products found
+                        </p>
+                      </div>
+                    )}
                 </div>
-              </ScrollArea>
+              </div>
             </CardContent>
           </Card>
 
           {/* Cart */}
-          <Card>
+          <Card className="flex-1 flex flex-col">
             <CardHeader>
               <h2 className="text-2xl font-bold flex items-center gap-2">
                 <ShoppingCart className="w-6 h-6" />
                 Cart ({items.length})
               </h2>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <ScrollArea className="h-[400px]">
+            <CardContent className="flex-1 flex flex-col space-y-4 overflow-hidden">
+              <ScrollArea className="flex-1">
                 {items.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <ShoppingCart className="w-16 h-16 mx-auto mb-2 opacity-20" />
-                    <p>Cart is empty</p>
+                  <div className="text-center py-16 text-gray-500">
+                    <ShoppingCart className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-lg">Cart is empty</p>
+                    <p className="text-sm mt-2">
+                      Scan a barcode or search for products to add items
+                    </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {items.map((item) => (
                       <div
                         key={item._id}
-                        className="border rounded-lg p-3 space-y-2"
+                        className="border rounded-lg p-3 space-y-2 hover:bg-gray-50 transition-colors"
                       >
                         <div className="flex justify-between items-start">
                           <h4 className="font-medium text-sm flex-1">
@@ -552,6 +597,7 @@ const POSPage: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => removeItem(item._id)}
+                            className="hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
@@ -567,7 +613,7 @@ const POSPage: React.FC = () => {
                             >
                               <Minus className="w-3 h-3" />
                             </Button>
-                            <span className="w-8 text-center">
+                            <span className="w-8 text-center font-medium">
                               {item.cartQuantity}
                             </span>
                             <Button
@@ -593,6 +639,7 @@ const POSPage: React.FC = () => {
 
               <Separator />
 
+              {/* Checkout Section */}
               <div className="space-y-3">
                 {/* Subtotal */}
                 <div className="flex justify-between text-sm">
@@ -661,11 +708,48 @@ const POSPage: React.FC = () => {
                 )}
 
                 {/* Total with Tax */}
-                <div className="flex justify-between text-lg font-bold border-t pt-2">
+                <div className="flex justify-between text-lg font-bold border-t border-b py-2">
                   <span>Total:</span>
                   <span className="text-green-600">
                     Rs {Number(totalWithTax || 0).toFixed(2)}
                   </span>
+                </div>
+
+                {/* Payment Method Selector */}
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Payment Method</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={paymentMethod === "Cash" ? "default" : "outline"}
+                      onClick={() => {
+                        setPaymentMethod("Cash");
+                        setPaidAmount(0);
+                      }}
+                      className={
+                        paymentMethod === "Cash"
+                          ? "bg-[#17411c] hover:bg-[#1a4f22]"
+                          : ""
+                      }
+                    >
+                      Cash
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={paymentMethod === "Card" ? "default" : "outline"}
+                      onClick={() => {
+                        setPaymentMethod("Card");
+                        setPaidAmount(totalWithTax);
+                      }}
+                      className={
+                        paymentMethod === "Card"
+                          ? "bg-[#17411c] hover:bg-[#1a4f22]"
+                          : ""
+                      }
+                    >
+                      Card
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Paid Amount Input */}
@@ -684,37 +768,6 @@ const POSPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Payment Method Selector */}
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Payment Method</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant={paymentMethod === "Cash" ? "default" : "outline"}
-                      onClick={() => setPaymentMethod("Cash")}
-                      className={
-                        paymentMethod === "Cash"
-                          ? "bg-[#17411c] hover:bg-[#1a4f22]"
-                          : ""
-                      }
-                    >
-                      Cash
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={paymentMethod === "Card" ? "default" : "outline"}
-                      onClick={() => setPaymentMethod("Card")}
-                      className={
-                        paymentMethod === "Card"
-                          ? "bg-[#17411c] hover:bg-[#1a4f22]"
-                          : ""
-                      }
-                    >
-                      Card
-                    </Button>
-                  </div>
-                </div>
-
                 {/* Change Display */}
                 {paymentMethod === "Cash" && paidAmount > 0 && (
                   <div
@@ -732,7 +785,7 @@ const POSPage: React.FC = () => {
                 )}
 
                 <Button
-                  className="w-full bg-[#17411c] hover:bg-[#1a4f22] text-lg py-6"
+                  className="w-full bg-[#17411c] hover:bg-[#1a4f22] text-lg py-6 font-semibold"
                   onClick={handleCheckout}
                   disabled={
                     items.length === 0 ||
@@ -760,13 +813,6 @@ const POSPage: React.FC = () => {
                 >
                   Clear Cart
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled
-                  aria-hidden="true"
-                  style={{ display: "none" }}
-                />
               </div>
             </CardContent>
           </Card>
