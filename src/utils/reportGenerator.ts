@@ -212,17 +212,18 @@ function generateProductWiseReport(transactions: Transaction[]) {
 
   transactions.forEach((t) => {
     (t.items || []).forEach((item) => {
-      const key = item.name;
+      const itemName = item.name || "Unknown Product";
+      const key = itemName;
       if (!productStats[key]) {
         productStats[key] = {
-          name: item.name,
+          name: itemName,
           quantity: 0,
           revenue: 0,
           transactions: 0,
           avgPrice: 0,
         };
       }
-      productStats[key].quantity += item.quantity;
+      productStats[key].quantity += item.quantity || 0;
       productStats[key].revenue += Number(item.total || 0);
       productStats[key].transactions += 1;
     });
@@ -258,9 +259,12 @@ function generateCategoryWiseReport(transactions: Transaction[]) {
 
   transactions.forEach((t) => {
     (t.items || []).forEach((item) => {
-      // Extract category from product name or use a default
-      // This assumes product names might contain category info
-      const category = extractCategory(item.name);
+      // Use actual category_name from item, or fallback to product_category, or extract from name
+      const itemName = item.name || "Unknown Product";
+      const category = 
+        (item as any).category_name || 
+        (item as any).product_category || 
+        (itemName ? extractCategory(itemName) : "Uncategorized");
 
       if (!categoryStats[category]) {
         categoryStats[category] = {
@@ -271,8 +275,8 @@ function generateCategoryWiseReport(transactions: Transaction[]) {
           transactions: 0,
         };
       }
-      categoryStats[category].products.add(item.name);
-      categoryStats[category].quantity += item.quantity;
+      categoryStats[category].products.add(itemName);
+      categoryStats[category].quantity += item.quantity || 0;
       categoryStats[category].revenue += Number(item.total || 0);
       categoryStats[category].transactions += 1;
     });
@@ -306,8 +310,11 @@ function generateInstituteWiseReport(transactions: Transaction[]) {
 
   transactions.forEach((t) => {
     (t.items || []).forEach((item) => {
-      // Extract institute info from product name or use default
-      const institute = extractInstitute(item.name);
+      // Use actual institute_name from item, or fallback to extracting from name
+      const itemName = item.name || "Unknown Product";
+      const institute = 
+        (item as any).institute_name || 
+        (itemName ? extractInstitute(itemName) : "General");
 
       if (!instituteStats[institute]) {
         instituteStats[institute] = {
@@ -318,8 +325,8 @@ function generateInstituteWiseReport(transactions: Transaction[]) {
           products: new Set(),
         };
       }
-      instituteStats[institute].products.add(item.name);
-      instituteStats[institute].quantity += item.quantity;
+      instituteStats[institute].products.add(itemName);
+      instituteStats[institute].quantity += item.quantity || 0;
       instituteStats[institute].revenue += Number(item.total || 0);
       instituteStats[institute].transactions += 1;
     });
@@ -370,7 +377,7 @@ function generateDailySalesReport(transactions: Transaction[]) {
     dailyStats[dateKey].discount += Number(t.discount || 0);
     dailyStats[dateKey].tax += Number(t.tax || 0);
     dailyStats[dateKey].itemsSold += (t.items || []).reduce(
-      (sum, item) => sum + item.quantity,
+      (sum, item) => sum + (item.quantity || 0),
       0
     );
   });
@@ -457,7 +464,7 @@ function generateCashierReport(transactions: Transaction[]) {
     cashierStats[cashier].transactions += 1;
     cashierStats[cashier].revenue += Number(t.total || 0);
     cashierStats[cashier].itemsSold += (t.items || []).reduce(
-      (sum, item) => sum + item.quantity,
+      (sum, item) => sum + (item.quantity || 0),
       0
     );
   });
@@ -481,7 +488,10 @@ function generateCashierReport(transactions: Transaction[]) {
 }
 
 // Helper function to extract category from product name
-function extractCategory(productName: string): string {
+function extractCategory(productName: string | undefined | null): string {
+  if (!productName || typeof productName !== "string") {
+    return "Uncategorized";
+  }
   // This is a simple implementation - you may need to adjust based on your naming convention
   // Looking for patterns like "Category - Product" or "Category: Product"
   const categoryMatch = productName.match(/^([^-:]+)[-:]/);
@@ -489,7 +499,10 @@ function extractCategory(productName: string): string {
 }
 
 // Helper function to extract institute from product name
-function extractInstitute(productName: string): string {
+function extractInstitute(productName: string | undefined | null): string {
+  if (!productName || typeof productName !== "string") {
+    return "General";
+  }
   // This is a simple implementation - adjust based on your naming convention
   // You might need to fetch this from the products table in a real implementation
   const instituteMatch = productName.match(/\(([^)]+)\)$/);

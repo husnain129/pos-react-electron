@@ -1,16 +1,16 @@
-import dotenv from "dotenv";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { Pool } from "pg";
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Pool } from 'pg';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load .env from the app root directory
-dotenv.config({ path: path.join(__dirname, "..", ".env") });
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const connectionString = process.env.DATABASE_URL || "";
-const requireSSL = connectionString.includes("sslmode=require");
-const disableSSL = connectionString.includes("sslmode=disable");
+const connectionString = process.env.DATABASE_URL || '';
+const requireSSL = connectionString.includes('sslmode=require');
+const disableSSL = connectionString.includes('sslmode=disable');
 
 const dbConfig: any = {
   connectionString,
@@ -20,7 +20,7 @@ if (requireSSL) {
   dbConfig.ssl = {
     rejectUnauthorized: false,
   };
-} else if (!disableSSL && connectionString.includes("aws.neon.tech")) {
+} else if (!disableSSL && connectionString.includes('aws.neon.tech')) {
   // Enable SSL for Neon and other cloud databases by default
   dbConfig.ssl = {
     rejectUnauthorized: false,
@@ -33,7 +33,7 @@ export const query = (text: string, params?: any[]) => pool.query(text, params);
 
 // Simple encoding function for passwords
 function encode(str: string): string {
-  return Buffer.from(str).toString("base64");
+  return Buffer.from(str).toString('base64');
 }
 
 // EAN-13 barcode generation
@@ -52,12 +52,120 @@ function calculateEAN13Checksum(barcode12: string): number {
 }
 
 function generateBarcode(productId: number): string {
-  const countryCode = "620";
-  const manufacturerCode = "1001";
-  const productCode = productId.toString().padStart(5, "0");
+  const countryCode = '620';
+  const manufacturerCode = '1001';
+  const productCode = productId.toString().padStart(5, '0');
   const barcode12 = countryCode + manufacturerCode + productCode;
   const checkDigit = calculateEAN13Checksum(barcode12);
   return barcode12 + checkDigit;
+}
+
+// Helper function to enrich transaction items with product category and institute data
+async function enrichTransactionItems(items: any[]): Promise<any[]> {
+  if (!items || items.length === 0) {
+    return items;
+  }
+
+  // Get all product IDs from items (handle both 'id' and 'product_id' fields)
+  const productIds = items
+    .map((item) => {
+      const productId = item.id || item.product_id;
+      return productId != null ? Number(productId) : null;
+    })
+    .filter((id) => id != null && !isNaN(id));
+
+  if (productIds.length === 0) {
+    return items;
+  }
+
+  try {
+    // Fetch product data with category and institute information
+    const productResult = await query(
+      `SELECT 
+        p.id,
+        p.category_id,
+        p.institute_id,
+        p.product_category,
+        p.institute_name,
+        c.name as category_name,
+        i.name as institute_name_from_table
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN institutes i ON p.institute_id = i.id
+      WHERE p.id = ANY($1)`,
+      [productIds],
+    );
+
+    // Create a map of product_id -> product data
+    const productMap = new Map();
+    productResult.rows.forEach((row) => {
+      productMap.set(row.id, {
+        category_id: row.category_id,
+        category_name: row.category_name || row.product_category || 'Uncategorized',
+        institute_id: row.institute_id,
+        institute_name: row.institute_name_from_table || row.institute_name || 'General',
+        product_category: row.product_category,
+      });
+    });
+
+    // Enrich items with product data
+    return items.map((item) => {
+      const productId = Number(item.id || item.product_id);
+      const productData = productMap.get(productId);
+
+      if (productData) {
+        return {
+          ...item,
+          category_id: productData.category_id,
+          category_name: productData.category_name,
+          institute_id: productData.institute_id,
+          institute_name: productData.institute_name,
+          product_category: productData.product_category,
+        };
+      }
+
+      // If product not found, return item as-is (for backward compatibility)
+      return {
+        ...item,
+        category_name: 'Uncategorized',
+        institute_name: 'General',
+      };
+    });
+  } catch (error) {
+    console.error('Error enriching transaction items:', error);
+    // Return items as-is if enrichment fails
+    return items;
+  }
+}
+
+// Helper function to process transactions and enrich their items
+async function processTransactions(transactions: any[]): Promise<any[]> {
+  const processedTransactions = await Promise.all(
+    transactions.map(async (transaction) => {
+      if (transaction.items) {
+        // Parse JSONB items if it's a string
+        let items = transaction.items;
+        if (typeof items === 'string') {
+          try {
+            items = JSON.parse(items);
+          } catch (e) {
+            console.error('Error parsing items JSON:', e);
+            items = [];
+          }
+        }
+
+        // Enrich items with product data
+        const enrichedItems = await enrichTransactionItems(items);
+        return {
+          ...transaction,
+          items: enrichedItems,
+        };
+      }
+      return transaction;
+    }),
+  );
+
+  return processedTransactions;
 }
 
 // Database operations
@@ -67,83 +175,81 @@ export const dbOperations = {
     login: async (username: string, password: string) => {
       try {
         let result = await query(
-          "SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users WHERE username = $1 AND password = $2",
-          [username, encode(password)]
+          'SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users WHERE username = $1 AND password = $2',
+          [username, encode(password)],
         );
 
         if (!result.rows[0]) {
           result = await query(
-            "SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users WHERE username = $1 AND password = $2",
-            [username, password]
+            'SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users WHERE username = $1 AND password = $2',
+            [username, password],
           );
         }
 
         if (result.rows[0]) {
-          await query(
-            "UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-            ["Logged In_" + new Date(), result.rows[0]._id]
-          );
+          await query('UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+            'Logged In_' + new Date(),
+            result.rows[0]._id,
+          ]);
         }
         return result.rows[0] || null;
       } catch (err: any) {
-        console.error("Login error:", err);
+        console.error('Login error:', err);
         throw new Error(err.message);
       }
     },
 
     logout: async (userId: number) => {
-      await query(
-        "UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-        ["Logged Out_" + new Date(), userId]
-      );
+      await query('UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+        'Logged Out_' + new Date(),
+        userId,
+      ]);
     },
 
     getAll: async () => {
       const result = await query(
-        "SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users ORDER BY id"
+        'SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users ORDER BY id',
       );
       return result.rows;
     },
 
     getById: async (userId: number) => {
       const result = await query(
-        "SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users WHERE id = $1",
-        [userId]
+        'SELECT id as _id, username, name, fullname, email, role, status, perm_products, perm_categories, perm_transactions, perm_users, perm_settings FROM users WHERE id = $1',
+        [userId],
       );
       return result.rows[0] || null;
     },
 
     create: async (userData: any) => {
       const result = await query(
-        "INSERT INTO users (username, password, name, fullname, email, role, perm_products, perm_categories, perm_transactions, perm_users, perm_settings) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id as _id, username, name, fullname, email, role",
+        'INSERT INTO users (username, password, name, fullname, email, role, perm_products, perm_categories, perm_transactions, perm_users, perm_settings) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id as _id, username, name, fullname, email, role',
         [
           userData.username,
           encode(userData.password),
           userData.name,
-          userData.fullname || "",
-          userData.email || "",
+          userData.fullname || '',
+          userData.email || '',
           userData.role,
           userData.perm_products || 0,
           userData.perm_categories || 0,
           userData.perm_transactions || 0,
           userData.perm_users || 0,
           userData.perm_settings || 0,
-        ]
+        ],
       );
       return result.rows[0];
     },
 
     update: async (userData: any) => {
       const result = await query(
-        "UPDATE users SET username = $1, password = $2, name = $3, fullname = $4, email = $5, role = $6, perm_products = $7, perm_categories = $8, perm_transactions = $9, perm_users = $10, perm_settings = $11, updated_at = CURRENT_TIMESTAMP WHERE id = $12 RETURNING id as _id, username, name, fullname, email, role",
+        'UPDATE users SET username = $1, password = $2, name = $3, fullname = $4, email = $5, role = $6, perm_products = $7, perm_categories = $8, perm_transactions = $9, perm_users = $10, perm_settings = $11, updated_at = CURRENT_TIMESTAMP WHERE id = $12 RETURNING id as _id, username, name, fullname, email, role',
         [
           userData.username,
-          userData.password.includes("=")
-            ? userData.password
-            : encode(userData.password),
+          userData.password.includes('=') ? userData.password : encode(userData.password),
           userData.name,
-          userData.fullname || "",
-          userData.email || "",
+          userData.fullname || '',
+          userData.email || '',
           userData.role,
           userData.perm_products || 0,
           userData.perm_categories || 0,
@@ -151,13 +257,13 @@ export const dbOperations = {
           userData.perm_users || 0,
           userData.perm_settings || 0,
           userData.id,
-        ]
+        ],
       );
       return result.rows[0];
     },
 
     delete: async (userId: number) => {
-      await query("DELETE FROM users WHERE id = $1", [userId]);
+      await query('DELETE FROM users WHERE id = $1', [userId]);
     },
   },
 
@@ -170,7 +276,7 @@ export const dbOperations = {
         p.zone, p.district, p.institute_name, p.institute_id, p.product_category,
         p.created_at, p.updated_at
         FROM products p 
-        ORDER BY p.id DESC`
+        ORDER BY p.id DESC`,
       );
       return result.rows;
     },
@@ -182,7 +288,7 @@ export const dbOperations = {
         p.zone, p.district, p.institute_name, p.institute_id 
         FROM products p 
         WHERE p.id = $1`,
-        [productId]
+        [productId],
       );
       return result.rows[0] || null;
     },
@@ -194,7 +300,7 @@ export const dbOperations = {
         p.zone, p.district, p.institute_name, p.institute_id 
         FROM products p 
         WHERE p.barcode = $1`,
-        [skuCode]
+        [skuCode],
       );
       return result.rows[0] || null;
     },
@@ -203,24 +309,18 @@ export const dbOperations = {
       let categoryName = null;
 
       // Only query category if category ID is provided and valid
-      if (
-        productData.category &&
-        productData.category !== "" &&
-        productData.category !== "0"
-      ) {
-        const categoryResult = await query(
-          "SELECT name FROM categories WHERE id = $1",
-          [parseInt(productData.category)]
-        );
-        categoryName =
-          categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+      if (productData.category && productData.category !== '' && productData.category !== '0') {
+        const categoryResult = await query('SELECT name FROM categories WHERE id = $1', [
+          parseInt(productData.category),
+        ]);
+        categoryName = categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
       }
 
-      let instituteDetails = { zone: "", district: "", institute_name: "" };
+      let instituteDetails = { zone: '', district: '', institute_name: '' };
       if (productData.institute_id) {
         const instituteResult = await query(
-          "SELECT zone, district, name as institute_name FROM institutes WHERE id = $1",
-          [parseInt(productData.institute_id)]
+          'SELECT zone, district, name as institute_name FROM institutes WHERE id = $1',
+          [parseInt(productData.institute_id)],
         );
         if (instituteResult.rows.length > 0) {
           instituteDetails = instituteResult.rows[0];
@@ -235,27 +335,22 @@ export const dbOperations = {
           productData.name,
           parseFloat(productData.price),
           parseFloat(productData.cost_price || 0),
-          productData.category &&
-          productData.category !== "" &&
-          productData.category !== "0"
+          productData.category && productData.category !== '' && productData.category !== '0'
             ? parseInt(productData.category)
             : null,
           categoryName,
           parseInt(productData.quantity || 0),
-          productData.stock || "",
+          productData.stock || '',
           productData.institute_id ? parseInt(productData.institute_id) : null,
           instituteDetails.zone,
           instituteDetails.district,
           instituteDetails.institute_name,
-        ]
+        ],
       );
 
       const newProduct = result.rows[0];
       const barcode = generateBarcode(newProduct.id);
-      await query("UPDATE products SET barcode = $1 WHERE id = $2", [
-        barcode,
-        newProduct.id,
-      ]);
+      await query('UPDATE products SET barcode = $1 WHERE id = $2', [barcode, newProduct.id]);
 
       return { ...newProduct, barcode };
     },
@@ -264,24 +359,18 @@ export const dbOperations = {
       let categoryName = null;
 
       // Only query category if category ID is provided and valid
-      if (
-        productData.category &&
-        productData.category !== "" &&
-        productData.category !== "0"
-      ) {
-        const categoryResult = await query(
-          "SELECT name FROM categories WHERE id = $1",
-          [parseInt(productData.category)]
-        );
-        categoryName =
-          categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
+      if (productData.category && productData.category !== '' && productData.category !== '0') {
+        const categoryResult = await query('SELECT name FROM categories WHERE id = $1', [
+          parseInt(productData.category),
+        ]);
+        categoryName = categoryResult.rows.length > 0 ? categoryResult.rows[0].name : null;
       }
 
-      let instituteDetails = { zone: "", district: "", institute_name: "" };
+      let instituteDetails = { zone: '', district: '', institute_name: '' };
       if (productData.institute_id) {
         const instituteResult = await query(
-          "SELECT zone, district, name as institute_name FROM institutes WHERE id = $1",
-          [parseInt(productData.institute_id)]
+          'SELECT zone, district, name as institute_name FROM institutes WHERE id = $1',
+          [parseInt(productData.institute_id)],
         );
         if (instituteResult.rows.length > 0) {
           instituteDetails = instituteResult.rows[0];
@@ -300,38 +389,34 @@ export const dbOperations = {
           productData.name,
           parseFloat(productData.price),
           parseFloat(productData.cost_price || 0),
-          productData.category &&
-          productData.category !== "" &&
-          productData.category !== "0"
+          productData.category && productData.category !== '' && productData.category !== '0'
             ? parseInt(productData.category)
             : null,
           categoryName,
           parseInt(productData.quantity || 0),
-          productData.stock || "",
-          productData.institute_id &&
-          productData.institute_id !== "" &&
-          productData.institute_id !== "0"
+          productData.stock || '',
+          productData.institute_id && productData.institute_id !== '' && productData.institute_id !== '0'
             ? parseInt(productData.institute_id)
             : null,
           instituteDetails.zone,
           instituteDetails.district,
           instituteDetails.institute_name,
           productData.id,
-        ]
+        ],
       );
 
       return result.rows[0];
     },
 
     delete: async (productId: number) => {
-      await query("DELETE FROM products WHERE id = $1", [productId]);
+      await query('DELETE FROM products WHERE id = $1', [productId]);
     },
 
     decrementInventory: async (productId: number, quantity: number) => {
-      await query(
-        "UPDATE products SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-        [quantity, productId]
-      );
+      await query('UPDATE products SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+        quantity,
+        productId,
+      ]);
     },
   },
 
@@ -339,42 +424,38 @@ export const dbOperations = {
   categories: {
     getAll: async () => {
       const result = await query(
-        "SELECT id as _id, name, description, institute_id, created_at FROM categories ORDER BY id"
+        'SELECT id as _id, name, description, institute_id, created_at FROM categories ORDER BY id',
       );
       return result.rows;
     },
 
     create: async (categoryData: any) => {
       const result = await query(
-        "INSERT INTO categories (name, description, institute_id) VALUES ($1, $2, $3) RETURNING id as _id, name, description, institute_id",
+        'INSERT INTO categories (name, description, institute_id) VALUES ($1, $2, $3) RETURNING id as _id, name, description, institute_id',
         [
           categoryData.name,
           categoryData.description || null,
-          categoryData.institute_id
-            ? parseInt(categoryData.institute_id)
-            : null,
-        ]
+          categoryData.institute_id ? parseInt(categoryData.institute_id) : null,
+        ],
       );
       return result.rows[0];
     },
 
     update: async (categoryData: any) => {
       const result = await query(
-        "UPDATE categories SET name = $1, description = $2, institute_id = $3 WHERE id = $4 RETURNING id as _id, name, description, institute_id",
+        'UPDATE categories SET name = $1, description = $2, institute_id = $3 WHERE id = $4 RETURNING id as _id, name, description, institute_id',
         [
           categoryData.name,
           categoryData.description || null,
-          categoryData.institute_id
-            ? parseInt(categoryData.institute_id)
-            : null,
+          categoryData.institute_id ? parseInt(categoryData.institute_id) : null,
           categoryData.id,
-        ]
+        ],
       );
       return result.rows[0];
     },
 
     delete: async (categoryId: number) => {
-      await query("DELETE FROM categories WHERE id = $1", [categoryId]);
+      await query('DELETE FROM categories WHERE id = $1', [categoryId]);
     },
   },
 
@@ -382,37 +463,37 @@ export const dbOperations = {
   institutes: {
     getAll: async () => {
       const result = await query(
-        "SELECT id as _id, name as institute_name, zone, district, created_at, updated_at FROM institutes ORDER BY id"
+        'SELECT id as _id, name as institute_name, zone, district, created_at, updated_at FROM institutes ORDER BY id',
       );
       return result.rows;
     },
 
     getById: async (id: number) => {
       const result = await query(
-        "SELECT id as _id, name as institute_name, zone, district, created_at, updated_at FROM institutes WHERE id = $1",
-        [id]
+        'SELECT id as _id, name as institute_name, zone, district, created_at, updated_at FROM institutes WHERE id = $1',
+        [id],
       );
       return result.rows[0] || null;
     },
 
     create: async (data: any) => {
       const result = await query(
-        "INSERT INTO institutes (name, zone, district) VALUES ($1, $2, $3) RETURNING id as _id, name as institute_name, zone, district",
-        [data.institute_name, data.zone, data.district]
+        'INSERT INTO institutes (name, zone, district) VALUES ($1, $2, $3) RETURNING id as _id, name as institute_name, zone, district',
+        [data.institute_name, data.zone, data.district],
       );
       return result.rows[0];
     },
 
     update: async (data: any) => {
       const result = await query(
-        "UPDATE institutes SET name = $1, zone = $2, district = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING id as _id, name as institute_name, zone, district",
-        [data.institute_name, data.zone, data.district, data.id]
+        'UPDATE institutes SET name = $1, zone = $2, district = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING id as _id, name as institute_name, zone, district',
+        [data.institute_name, data.zone, data.district, data.id],
       );
       return result.rows[0];
     },
 
     delete: async (id: number) => {
-      await query("DELETE FROM institutes WHERE id = $1", [id]);
+      await query('DELETE FROM institutes WHERE id = $1', [id]);
     },
   },
 
@@ -420,48 +501,43 @@ export const dbOperations = {
   customers: {
     getAll: async () => {
       const result = await query(
-        "SELECT id as _id, name, phone, email, address, created_at, updated_at FROM customers ORDER BY id"
+        'SELECT id as _id, name, phone, email, address, created_at, updated_at FROM customers ORDER BY id',
       );
       return result.rows;
     },
 
     getById: async (customerId: number) => {
       const result = await query(
-        "SELECT id as _id, name, phone, email, address, created_at, updated_at FROM customers WHERE id = $1",
-        [customerId]
+        'SELECT id as _id, name, phone, email, address, created_at, updated_at FROM customers WHERE id = $1',
+        [customerId],
       );
       return result.rows[0] || null;
     },
 
     create: async (customerData: any) => {
       const result = await query(
-        "INSERT INTO customers (name, phone, email, address) VALUES ($1, $2, $3, $4) RETURNING id as _id, name, phone, email, address",
-        [
-          customerData.name,
-          customerData.phone || "",
-          customerData.email || "",
-          customerData.address || "",
-        ]
+        'INSERT INTO customers (name, phone, email, address) VALUES ($1, $2, $3, $4) RETURNING id as _id, name, phone, email, address',
+        [customerData.name, customerData.phone || '', customerData.email || '', customerData.address || ''],
       );
       return result.rows[0];
     },
 
     update: async (customerData: any) => {
       const result = await query(
-        "UPDATE customers SET name = $1, phone = $2, email = $3, address = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING id as _id, name, phone, email, address",
+        'UPDATE customers SET name = $1, phone = $2, email = $3, address = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING id as _id, name, phone, email, address',
         [
           customerData.name,
-          customerData.phone || "",
-          customerData.email || "",
-          customerData.address || "",
+          customerData.phone || '',
+          customerData.email || '',
+          customerData.address || '',
           customerData.id,
-        ]
+        ],
       );
       return result.rows[0];
     },
 
     delete: async (customerId: number) => {
-      await query("DELETE FROM customers WHERE id = $1", [customerId]);
+      await query('DELETE FROM customers WHERE id = $1', [customerId]);
     },
   },
 
@@ -472,9 +548,10 @@ export const dbOperations = {
         `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
-         ORDER BY t.id DESC`
+         ORDER BY t.id DESC`,
       );
-      return result.rows;
+      const processedTransactions = await processTransactions(result.rows);
+      return processedTransactions;
     },
 
     getById: async (transactionId: number) => {
@@ -483,17 +560,16 @@ export const dbOperations = {
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.id = $1`,
-        [transactionId]
+        [transactionId],
       );
-      return result.rows[0] || null;
+      if (result.rows.length === 0) {
+        return null;
+      }
+      const processedTransactions = await processTransactions([result.rows[0]]);
+      return processedTransactions[0];
     },
 
-    getByDate: async (
-      start: string,
-      end: string,
-      status: number,
-      user?: number
-    ) => {
+    getByDate: async (start: string, end: string, status: number, user?: number) => {
       let queryText = `SELECT t.id as _id, t.*, t.total_amount as total, t.created_at as date, u.name as user 
                        FROM transactions t 
                        LEFT JOIN users u ON t.user_id = u.id 
@@ -501,13 +577,14 @@ export const dbOperations = {
       const params: any[] = [start, end, status];
 
       if (user && user > 0) {
-        queryText += " AND t.user_id = $4";
+        queryText += ' AND t.user_id = $4';
         params.push(user);
       }
 
-      queryText += " ORDER BY t.id DESC";
+      queryText += ' ORDER BY t.id DESC';
       const result = await query(queryText, params);
-      return result.rows;
+      const processedTransactions = await processTransactions(result.rows);
+      return processedTransactions;
     },
 
     getOnHold: async () => {
@@ -516,9 +593,10 @@ export const dbOperations = {
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.status = 0 
-         ORDER BY t.id DESC`
+         ORDER BY t.id DESC`,
       );
-      return result.rows;
+      const processedTransactions = await processTransactions(result.rows);
+      return processedTransactions;
     },
 
     getCustomerOrders: async () => {
@@ -527,9 +605,10 @@ export const dbOperations = {
          FROM transactions t 
          LEFT JOIN users u ON t.user_id = u.id 
          WHERE t.status = 2 
-         ORDER BY t.id DESC`
+         ORDER BY t.id DESC`,
       );
-      return result.rows;
+      const processedTransactions = await processTransactions(result.rows);
+      return processedTransactions;
     },
 
     create: async (transactionData: any) => {
@@ -544,25 +623,22 @@ export const dbOperations = {
           JSON.stringify(transactionData.items),
           transactionData.total,
           transactionData.payment_method,
-          transactionData.payment_status || "paid",
+          transactionData.payment_status || 'paid',
           transactionData.status,
           transactionData.discount || 0,
           transactionData.tax || 0,
           transactionData.ref_number || null,
-        ]
+        ],
       );
 
       // Decrement inventory for completed/paid transactions
       if (
-        transactionData.payment_status === "Paid" ||
-        transactionData.payment_status === "paid" ||
+        transactionData.payment_status === 'Paid' ||
+        transactionData.payment_status === 'paid' ||
         transactionData.status === 1
       ) {
         for (const item of transactionData.items) {
-          await dbOperations.inventory.decrementInventory(
-            item.id || item.product_id,
-            item.quantity
-          );
+          await dbOperations.inventory.decrementInventory(item.id || item.product_id, item.quantity);
         }
       }
 
@@ -583,32 +659,32 @@ export const dbOperations = {
           JSON.stringify(transactionData.items),
           transactionData.total,
           transactionData.payment_method,
-          transactionData.payment_status || "paid",
+          transactionData.payment_status || 'paid',
           transactionData.status,
           transactionData.discount || 0,
           transactionData.tax || 0,
           transactionData.ref_number || null,
           transactionData.id,
-        ]
+        ],
       );
 
       return result.rows[0];
     },
 
     delete: async (orderId: number) => {
-      await query("DELETE FROM transactions WHERE id = $1", [orderId]);
+      await query('DELETE FROM transactions WHERE id = $1', [orderId]);
     },
   },
 
   // Settings
   settings: {
     get: async () => {
-      const result = await query("SELECT * FROM settings LIMIT 1");
+      const result = await query('SELECT * FROM settings LIMIT 1');
       return result.rows[0] || null;
     },
 
     update: async (settingsData: any) => {
-      const existing = await query("SELECT id FROM settings LIMIT 1");
+      const existing = await query('SELECT id FROM settings LIMIT 1');
 
       if (existing.rows.length > 0) {
         const result = await query(
@@ -626,7 +702,7 @@ export const dbOperations = {
             settingsData.tax_rate,
             settingsData.receipt_footer,
             existing.rows[0].id,
-          ]
+          ],
         );
         return result.rows[0];
       } else {
@@ -642,7 +718,7 @@ export const dbOperations = {
             settingsData.currency,
             settingsData.tax_rate,
             settingsData.receipt_footer,
-          ]
+          ],
         );
         return result.rows[0];
       }

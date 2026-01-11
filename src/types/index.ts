@@ -64,6 +64,11 @@ export interface TransactionItem {
   price: number;
   quantity: number;
   total: number;
+  category_id?: number;
+  category_name?: string;
+  institute_id?: number;
+  institute_name?: string;
+  product_category?: string;
 }
 
 export interface Transaction {
