@@ -188,7 +188,7 @@ function generateTransactionsSheet(transactions: Transaction[]) {
     const fullname = (t as any).user_fullname || t.user || "Unknown";
     const role = (t as any).user_role || "";
     const cashier = role ? `${fullname} (${role})` : fullname;
-    
+
     return {
       "Invoice #": t._id,
       Date: moment(t.date).format("MMM DD, YYYY h:mm A"),
@@ -209,6 +209,8 @@ function generateProductWiseReport(transactions: Transaction[]) {
   const productStats: {
     [key: string]: {
       name: string;
+      category: string;
+      institute: string;
       quantity: number;
       revenue: number;
       transactions: number;
@@ -221,8 +223,19 @@ function generateProductWiseReport(transactions: Transaction[]) {
       const itemName = item.name || "Unknown Product";
       const key = itemName;
       if (!productStats[key]) {
+        // Use actual category_name from item, or fallback to product_category
+        const itemCategory =
+          (item as any).category_name ||
+          (item as any).product_category ||
+          "Uncategorized";
+
+        // Get institute name from item
+        const itemInstitute = (item as any).institute_name || "N/A";
+
         productStats[key] = {
           name: itemName,
+          category: itemCategory,
+          institute: itemInstitute,
           quantity: 0,
           revenue: 0,
           transactions: 0,
@@ -244,6 +257,8 @@ function generateProductWiseReport(transactions: Transaction[]) {
     .sort((a, b) => b.revenue - a.revenue)
     .map((stat) => ({
       "Product Name": stat.name,
+      Category: stat.category,
+      Institute: stat.institute,
       "Total Quantity Sold": stat.quantity,
       "Total Revenue (Rs)": stat.revenue.toFixed(2),
       "Number of Transactions": stat.transactions,
@@ -267,9 +282,9 @@ function generateCategoryWiseReport(transactions: Transaction[]) {
     (t.items || []).forEach((item) => {
       // Use actual category_name from item, or fallback to product_category, or extract from name
       const itemName = item.name || "Unknown Product";
-      const category = 
-        (item as any).category_name || 
-        (item as any).product_category || 
+      const category =
+        (item as any).category_name ||
+        (item as any).product_category ||
         (itemName ? extractCategory(itemName) : "Uncategorized");
 
       if (!categoryStats[category]) {
@@ -318,8 +333,8 @@ function generateInstituteWiseReport(transactions: Transaction[]) {
     (t.items || []).forEach((item) => {
       // Use actual institute_name from item, or fallback to extracting from name
       const itemName = item.name || "Unknown Product";
-      const institute = 
-        (item as any).institute_name || 
+      const institute =
+        (item as any).institute_name ||
         (itemName ? extractInstitute(itemName) : "General");
 
       if (!instituteStats[institute]) {
