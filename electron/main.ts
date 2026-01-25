@@ -39,7 +39,7 @@ function normalizeReceiptData(input: any) {
 
   const subtotalFromItems = items.reduce(
     (sum: number, it: any) => sum + Number(it.total || 0),
-    0
+    0,
   );
 
   const discountAmount = Number(input?.discountAmount ?? input?.discount ?? 0);
@@ -75,7 +75,7 @@ function normalizeReceiptData(input: any) {
 }
 
 async function resolveThermalPrinterName(
-  preferredName: string = PREFERRED_THERMAL_PRINTER_NAME
+  preferredName: string = PREFERRED_THERMAL_PRINTER_NAME,
 ): Promise<string | undefined> {
   // If we can't inspect printers yet, let Electron use the system default.
   if (!win) return undefined;
@@ -89,7 +89,7 @@ async function resolveThermalPrinterName(
 
     const exact =
       preferred &&
-      printers.find((p) => p.name?.toLowerCase() === preferredLower);
+      (printers.find((p) => p.name?.toLowerCase() === preferredLower) as any);
     if (exact?.name) {
       console.log("Resolved thermal printer (exact match):", exact.name);
       return exact.name;
@@ -97,7 +97,9 @@ async function resolveThermalPrinterName(
 
     const partial =
       preferred &&
-      printers.find((p) => p.name?.toLowerCase().includes(preferredLower!));
+      (printers.find((p) =>
+        p.name?.toLowerCase().includes(preferredLower!),
+      ) as any);
     if (partial?.name) {
       console.log("Resolved thermal printer (partial match):", partial.name);
       return partial.name;
@@ -107,7 +109,7 @@ async function resolveThermalPrinterName(
     if (def?.name) {
       if (preferred) {
         console.warn(
-          `Preferred thermal printer "${preferred}" not found. Falling back to default: ${def.name}`
+          `Preferred thermal printer "${preferred}" not found. Falling back to default: ${def.name}`,
         );
       }
       console.log("Resolved thermal printer (default):", def.name);
@@ -117,7 +119,7 @@ async function resolveThermalPrinterName(
     const first = printers[0]?.name;
     if (preferred) {
       console.warn(
-        `Preferred thermal printer "${preferred}" not found. Falling back to first available: ${first}`
+        `Preferred thermal printer "${preferred}" not found. Falling back to first available: ${first}`,
       );
     }
     console.log("Resolved thermal printer (first available):", first);
@@ -140,9 +142,11 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
     // Validate receipt data
     console.log("=== Building HTML Receipt ===");
     console.log("Normalized receipt data:", JSON.stringify(data, null, 2));
-    
+
     if (!data.items || data.items.length === 0) {
-      console.error("ERROR: Cannot print HTML receipt - empty or invalid data!");
+      console.error(
+        "ERROR: Cannot print HTML receipt - empty or invalid data!",
+      );
       return { success: false, error: "Empty or invalid receipt data" };
     }
 
@@ -210,7 +214,7 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
       <span>${item.quantity} x Rs ${Number(item.price).toFixed(2)}</span>
       <span class="bold">Rs ${Number(item.total).toFixed(2)}</span>
     </div>
-  </div>`
+  </div>`,
     )
     .join("")}
   <div class="line"></div>
@@ -264,7 +268,7 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
 
     // Show print window for debugging - set to true to see what's being printed
     const DEBUG_PRINT = false; // Set to true to debug HTML rendering
-    
+
     const printWindow = new BrowserWindow({
       show: DEBUG_PRINT,
       width: 400,
@@ -276,18 +280,25 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
     });
 
     // Use base64 encoding which is more reliable for HTML content
-    const base64HTML = Buffer.from(receiptHTML, 'utf-8').toString('base64');
-    
+    const base64HTML = Buffer.from(receiptHTML, "utf-8").toString("base64");
+
     // Wait for content to fully load
     await new Promise<void>((resolve, reject) => {
-      printWindow.webContents.once('did-finish-load', () => {
+      printWindow.webContents.once("did-finish-load", () => {
         console.log("Receipt HTML loaded successfully");
         resolve();
       });
-      printWindow.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
-        console.error("Failed to load receipt HTML:", errorCode, errorDescription);
-        reject(new Error(errorDescription));
-      });
+      printWindow.webContents.once(
+        "did-fail-load",
+        (_event, errorCode, errorDescription) => {
+          console.error(
+            "Failed to load receipt HTML:",
+            errorCode,
+            errorDescription,
+          );
+          reject(new Error(errorDescription));
+        },
+      );
       printWindow.loadURL(`data:text/html;base64,${base64HTML}`);
     });
 
@@ -306,7 +317,7 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
         color: false,
         margins: { marginType: "none" },
         pageSize: {
-          width: 80000,   // 80mm in microns - matches driver
+          width: 80000, // 80mm in microns - matches driver
           height: 150000, // 150mm height for receipt content
         },
       };
@@ -317,24 +328,21 @@ async function printThermalReceipt(receiptData: any): Promise<any> {
 
       console.log("Printing receipt: 80mm x 150mm...");
 
-      printWindow.webContents.print(
-        options,
-        (success, errorType) => {
-          if (!DEBUG_PRINT) {
-            printWindow.close();
-          }
-          if (success) {
-            console.log("Print job sent successfully");
-            resolve({ success: true });
-          } else {
-            console.error("Print failed:", errorType);
-            resolve({
-              success: false,
-              error: `Print failed: ${errorType}`,
-            });
-          }
+      printWindow.webContents.print(options, (success, errorType) => {
+        if (!DEBUG_PRINT) {
+          printWindow.close();
         }
-      );
+        if (success) {
+          console.log("Print job sent successfully");
+          resolve({ success: true });
+        } else {
+          console.error("Print failed:", errorType);
+          resolve({
+            success: false,
+            error: `Print failed: ${errorType}`,
+          });
+        }
+      });
     });
   } catch (error) {
     console.error("Thermal print error:", error);
@@ -349,7 +357,7 @@ function setupIPCHandlers() {
     "users:login",
     async (_event, username: string, password: string) => {
       return await dbOperations.users.login(username, password);
-    }
+    },
   );
 
   ipcMain.handle("users:logout", async (_event, userId: number) => {
@@ -469,7 +477,7 @@ function setupIPCHandlers() {
     "transactions:getById",
     async (_event, transactionId: number) => {
       return await dbOperations.transactions.getById(transactionId);
-    }
+    },
   );
 
   ipcMain.handle(
@@ -479,15 +487,15 @@ function setupIPCHandlers() {
       start: string,
       end: string,
       status: number,
-      user?: number
+      user?: number,
     ) => {
       return await dbOperations.transactions.getByDate(
         start,
         end,
         status,
-        user
+        user,
       );
-    }
+    },
   );
 
   ipcMain.handle("transactions:getOnHold", async () => {
@@ -502,14 +510,14 @@ function setupIPCHandlers() {
     "transactions:create",
     async (_event, transactionData: any) => {
       return await dbOperations.transactions.create(transactionData);
-    }
+    },
   );
 
   ipcMain.handle(
     "transactions:update",
     async (_event, transactionData: any) => {
       return await dbOperations.transactions.update(transactionData);
-    }
+    },
   );
 
   ipcMain.handle("transactions:delete", async (_event, orderId: number) => {
@@ -609,7 +617,7 @@ function setupIPCHandlers() {
       });
 
       await printWindow.loadURL(
-        `data:text/html;charset=utf-8,${encodeURIComponent(testHTML)}`
+        `data:text/html;charset=utf-8,${encodeURIComponent(testHTML)}`,
       );
       await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -621,17 +629,14 @@ function setupIPCHandlers() {
         };
         if (thermalPrinterName) options.deviceName = thermalPrinterName;
 
-        printWindow.webContents.print(
-          options,
-          (success, errorType) => {
-            printWindow.close();
-            resolve(
-              success
-                ? { success: true }
-                : { success: false, error: `Print failed: ${errorType}` }
-            );
-          }
-        );
+        printWindow.webContents.print(options, (success, errorType) => {
+          printWindow.close();
+          resolve(
+            success
+              ? { success: true }
+              : { success: false, error: `Print failed: ${errorType}` },
+          );
+        });
       });
     } catch (error: any) {
       console.error("Printer test error:", error);
@@ -673,11 +678,14 @@ function setupIPCHandlers() {
 
       // Log received data for debugging
       console.log("=== Receipt Data Received ===");
-      console.log("Normalized receipt data:", JSON.stringify(normalized, null, 2));
+      console.log(
+        "Normalized receipt data:",
+        JSON.stringify(normalized, null, 2),
+      );
       console.log("Items count:", normalized?.items?.length || 0);
       console.log("Invoice No:", normalized?.invoiceNo);
       console.log("Customer:", normalized?.customer_name);
-      
+
       if (!normalized.items || normalized.items.length === 0) {
         console.error("ERROR: Empty or invalid receipt data received!");
         return { success: false, error: "Empty or invalid receipt data" };

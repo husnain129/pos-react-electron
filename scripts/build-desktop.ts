@@ -34,8 +34,15 @@ async function main() {
   execSync("bunx tsc", { stdio: "inherit" });
 
   execSync("bunx vite build", { stdio: "inherit" });
-  execSync(`bunx electron-builder --config temp-config.json ${flag}`, {
+  
+  // Use npx for electron-builder to avoid Bun's missing 'rebuild' command issue with native modules
+  execSync(`npx electron-builder --config temp-config.json ${flag}`, {
     stdio: "inherit",
+    env: {
+      ...process.env,
+      // Force npm for rebuilding native dependencies (bun doesn't support 'rebuild')
+      npm_config_runtime: "electron",
+    },
   });
 
   execSync("rm temp-config.json");

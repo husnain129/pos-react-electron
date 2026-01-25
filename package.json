@@ -89,6 +89,7 @@
       "output": "release"
     },
     "appId": "com.electron.react.tailwind",
+    "npmRebuild": false,
     "mac": {
       "target": [
         "dmg",
